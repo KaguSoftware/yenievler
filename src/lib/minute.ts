@@ -27,7 +27,8 @@ export const expoOut = (x: number) => {
 };
 
 /** Seconds on the clock face. Runs a hair past 60 so the last digits can roll over. */
-export const clockSeconds = (p: number) => 60.4 * clamp01((p - T_ON) / (T_OFF - T_ON));
+export const clockSeconds = (p: number) =>
+  60.4 * clamp01((p - T_ON) / (T_OFF - T_ON));
 /** Seconds of water actually run, capped at one minute. */
 export const seconds = (p: number) => Math.min(60, clockSeconds(p));
 export const litres = (p: number, rate: number) => (rate * seconds(p)) / 60;
@@ -35,13 +36,15 @@ export const fill = (p: number, rate: number) => litres(p, rate) / CAPACITY;
 
 /** 0..1 how hard the tap is running (ramps up at T_ON, down at T_OFF). */
 export const flowAt = (p: number) =>
-  smoothstep(T_ON - 0.015, T_ON + 0.02, p) * (1 - smoothstep(T_OFF, T_OFF + 0.03, p));
+  smoothstep(T_ON - 0.015, T_ON + 0.02, p) *
+  (1 - smoothstep(T_OFF, T_OFF + 0.03, p));
 
 /** Heads lower into place over the first stretch of the pin. */
 export const arrive = (p: number) => smoothstep(0, 0.07, p);
 
 /** The comparison (guide line, band) draws in after the tap closes. */
-export const reveal = (p: number, a: number, b: number) => expoOut((p - a) / (b - a));
+export const reveal = (p: number, a: number, b: number) =>
+  expoOut((p - a) / (b - a));
 
 /**
  * Odometer position for a digit: sits still, then rolls to the next value in

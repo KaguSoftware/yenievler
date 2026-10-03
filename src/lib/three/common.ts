@@ -109,3 +109,6 @@ export const reducedMotion = () =>
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 export type Dispose = () => void;
+
+/** Frame-rate independent exponential approach: 1 - exp(-dt * k). */
+export const damp = (dt: number, k: number) => 1 - Math.exp(-dt * k);

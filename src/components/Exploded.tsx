@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { Reveal } from "./Reveal";
 
 const PARTS = [
   { n: "01", title: "Body", body: "A 4.2 kg billet of solid brass, polished in four stages." },
@@ -47,14 +48,14 @@ export function Exploded() {
     >
       <div className="sticky top-0 h-[100svh] min-h-[620px] overflow-hidden">
         <div ref={stage} className="absolute inset-0" aria-hidden />
-        <div className="pointer-events-none absolute top-[clamp(28px,6vh,64px)] left-[var(--pad)] max-w-[600px]">
+        <Reveal className="pointer-events-none absolute top-[clamp(28px,6vh,64px)] left-[var(--pad)] max-w-[600px]">
           <h2 className="display text-[clamp(40px,5.4vw,92px)]">
             Take it <span className="text-signal">apart.</span>
           </h2>
           <p className="mt-4 max-w-[26ch] text-[17px] leading-[1.4] text-paper/70">
             Scroll. The R-360 comes apart into five parts, and none of them is plastic.
           </p>
-        </div>
+        </Reveal>
         <div ref={labels} className="pointer-events-none absolute inset-0">
           {PARTS.map((p) => (
             <div

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Archivo } from "next/font/google";
 import "./globals.css";
+import { MotionRoot } from "@/components/MotionRoot";
 
 const archivo = Archivo({
   variable: "--font-archivo",
@@ -18,7 +19,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${archivo.variable} antialiased`}>
-      <body>{children}</body>
+      <body>
+        <MotionRoot>{children}</MotionRoot>
+      </body>
     </html>
   );
 }
