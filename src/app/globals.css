@@ -1,26 +1,114 @@
 @import "tailwindcss";
 
+@theme {
+  --color-signal: oklch(0.65 0.205 38);
+  --color-signal-deep: oklch(0.52 0.18 36);
+  --color-signal-dark: oklch(0.4 0.13 35);
+  --color-paper: oklch(0.955 0.012 78);
+  --color-paper-2: oklch(0.92 0.014 78);
+  --color-mist: oklch(0.91 0.006 250);
+  --color-mist-2: oklch(0.86 0.008 250);
+  --color-gun: oklch(0.255 0.01 255);
+  --color-gun-2: oklch(0.32 0.01 255);
+  --color-gun-3: oklch(0.44 0.01 255);
+  --color-gun-hi: oklch(0.72 0.008 255);
+  --color-ink: oklch(0.19 0.015 45);
+  --color-key: oklch(0.985 0.004 90);
+
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Phone layout of the exploded view. exploded.ts sets [data-compact] on the
+   labels layer when the stage is narrower than 640px, so CSS and JS agree. */
+@custom-variant compact (&:where([data-compact] *));
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --pad: clamp(20px, 4vw, 56px);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
+  background: var(--color-ink);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-stretch: 100%;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+
+::selection {
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+
+/* Archivo width axis carries the brand: wide for display, narrow for labels. */
+.wide {
+  font-stretch: 125%;
+}
+.narrow {
+  font-stretch: 70%;
+}
+.display {
+  font-stretch: 125%;
+  font-weight: 800;
+  line-height: 0.88;
+  letter-spacing: -0.035em;
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+/* Scroll reveal: opacity + transform only. */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition:
+    opacity 0.9s var(--ease-out-expo),
+    transform 0.9s var(--ease-out-expo);
+  transition-delay: var(--d, 0ms);
+}
+.reveal.in {
+  opacity: 1;
+  transform: none;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.5em);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.rise {
+  animation: rise 1s var(--ease-out-expo) both;
+  animation-delay: var(--d, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .rise {
+    animation: none;
+  }
 }
