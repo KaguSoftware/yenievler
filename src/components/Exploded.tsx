@@ -19,7 +19,7 @@ export function Exploded() {
     >
       <div className="noworld:static noworld:h-auto noworld:min-h-0 noworld:overflow-visible noworld:px-[var(--pad)] noworld:py-[clamp(64px,9vw,120px)] sticky top-0 h-[100svh] min-h-[620px] overflow-hidden">
         <div data-world-caption="" className="noworld:static noworld:opacity-100">
-          <Reveal className="pointer-events-none absolute top-[clamp(28px,6vh,64px)] left-[var(--pad)] max-w-[600px] noworld:static">
+          <Reveal className="pointer-events-none absolute top-[clamp(28px,6vh,64px)] left-[var(--pad)] max-w-[min(100%,720px)] noworld:static">
             <h2 className="display text-[clamp(40px,5.4vw,92px)]">
               {t.exploded.titleA} <span className="text-signal">{t.exploded.titleB}</span>
             </h2>

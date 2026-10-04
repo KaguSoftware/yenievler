@@ -225,7 +225,7 @@ function Tab({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.4 }}
       transition={{ duration: 1.2, ease: EXPO, delay: idx * 0.09 }}
-      className="display flex items-baseline gap-5 border-t border-ink/15 py-[0.12em] text-left text-[clamp(64px,10vw,168px)] last:border-b"
+      className="display flex items-baseline gap-5 border-t border-ink/15 py-[0.12em] text-left text-[clamp(40px,14vw,64px)] last:border-b sm:text-[clamp(64px,10vw,168px)]"
     >
       <span className="narrow num w-8 shrink-0 text-[15px] font-semibold tracking-normal text-ink/72">
         0{idx + 1}

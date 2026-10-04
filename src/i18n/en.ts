@@ -182,6 +182,8 @@ const en = {
   configurator: {
     aria: "Basin builder",
     orbit: "Drag to orbit",
+    /** Accessible name of the 3D canvas at the basin. Placeholders: {stone}, {finish} (lowercase it for the locale). */
+    canvas: "3D basin in {stone} with {finish} fittings. Drag to orbit.",
     waterOn: "Water running",
     waterOff: "Water off",
     title: "Build a basin.",

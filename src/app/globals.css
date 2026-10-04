@@ -86,6 +86,15 @@ body {
 .num {
   font-variant-numeric: tabular-nums;
 }
+/* Headlines wrap at spaces only. A word that does not fit overflows (and is caught in review)
+   rather than being cut in two. */
+h1,
+h2,
+.display {
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+}
 
 :focus-visible {
   outline: 2px solid currentColor;

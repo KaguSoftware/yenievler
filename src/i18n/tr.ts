@@ -116,7 +116,7 @@ const tr: Dict = {
     titleB: "çalınır.",
     lede: "Piano, bizim mutfak eviyemiz. Tezgâhında dört tuş var ve kaydırmaya devam ettikçe onları kendisi çalar.",
     parts: [
-      { title: "Musluk", body: "Başlığı dışarı çekilir ve üç farklı akış verir." },
+      { title: "Musluk", body: "Başlık dışarı çekilir ve üç farklı akış verir." },
       { title: "Şelaleler", body: "Bir yarıktan ve bir ızgaradan akar, eller serbest kalır." },
       { title: "Bardak durulayıcı", body: "Bardağı ters çevir, jetler içini yıkar." },
       { title: "İçme suyu", body: "Filtrelenmiş su kendi musluğundan gelir." },
@@ -195,6 +195,8 @@ const tr: Dict = {
   configurator: {
     aria: "Lavabo tasarımcısı",
     orbit: "Döndürmek için sürükle",
+    /** Accessible name of the 3D canvas at the basin. Placeholders: {stone}, {finish} (lowercase it for the locale). */
+    canvas: "{stone} taşlı ve {finish} armatürlü 3B lavabo. Döndürmek için sürükle.",
     waterOn: "Su açık",
     waterOff: "Su kapalı",
     title: "Kendi lavabonu kur.",

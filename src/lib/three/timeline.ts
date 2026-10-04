@@ -454,9 +454,11 @@ const MOBILE: Record<string, Partial<KeyDef>> = {
   "sink-wide": { cam: [1.6, SK + 2.7, 3.8], look: [0, SK + 0.05, -0.05], shift: [0, -1.6] },
   // The phone window is square, about 0.42 of the screen: a wider lens still.
   "sink-spec": { cam: [1.3, SK + 2.0, 2.2], fov: 113 },
-  "sink-spec-hold": { veil: 0 },
-  "dive-veil": { at: top("sink-dive", 0), veil: 1 },
-  "dive-free": { at: top("sink-dive", 0.42), cam: [0.5, SK + 2.3, 1.45], fov: 50 },
+  // Phones: the world fades with the falling words, the pin lets go behind the veil, and the sink fades
+  // back in over half a screen while the camera is already gliding down.
+  "sink-spec-hold": { at: top("sink-dive", -0.45), veil: 0 },
+  "dive-veil": { at: top("sink-dive", -0.15), veil: 1 },
+  "dive-free": { at: top("sink-dive", -0.05), cam: [0.5, SK + 2.3, 1.45], fov: 50 },
   "drain-a": { cam: [0.3, SK + 1.9, 1.0], fov: 44 },
   "drain-mouth": { fov: 52 },
   "drain-b": { fov: 70 },

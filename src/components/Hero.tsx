@@ -50,18 +50,32 @@ function Letters({
   base: number;
   play?: boolean;
 }) {
+  // Every letter is its own inline-block, and a browser may wrap between any two of those. Each word
+  // therefore sits in a nowrap box, so the line can only ever break at a space, never inside a word.
+  let at = base;
   return (
     <span className="block" aria-hidden>
-      {Array.from(text).map((ch, i) => (
-        <motion.span
-          key={i}
-          className="inline-block"
-          variants={play ? PLAY : ENTER}
-          custom={base + i}
-        >
-          {ch}
-        </motion.span>
-      ))}
+      {text.split(" ").map((word, w) => {
+        const start = at;
+        at += Array.from(word).length + 1;
+        return (
+          <span key={w}>
+            {w > 0 && " "}
+            <span className="inline-block whitespace-nowrap">
+              {Array.from(word).map((ch, i) => (
+                <motion.span
+                  key={i}
+                  className="inline-block"
+                  variants={play ? PLAY : ENTER}
+                  custom={start + i}
+                >
+                  {ch}
+                </motion.span>
+              ))}
+            </span>
+          </span>
+        );
+      })}
     </span>
   );
 }
@@ -172,7 +186,7 @@ export function Hero() {
       </motion.nav>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-wrap items-end justify-between gap-x-10 gap-y-8 px-[var(--pad)] pb-[clamp(24px,5vh,56px)]">
-        <div className="max-w-[760px]">
+        <div className="max-w-[1000px]">
           <motion.div style={scrollOut(titleY, titleO)}>
             <motion.h1
               aria-label={`${t.hero.titleA} ${t.hero.titleB}`}
@@ -252,9 +266,9 @@ function Console({
     <div
       role="group"
       aria-label={t.hero.mixerLabel}
-      className="flex items-center gap-3 rounded-[44px_14px_14px_44px] p-3 pr-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-7px_0_rgba(0,0,0,0.38),0_26px_50px_rgba(60,15,0,0.45),0_2px_0_#0b0c0e] [background:linear-gradient(180deg,oklch(0.42_0.01_255)_0%,oklch(0.31_0.01_255)_34%,oklch(0.23_0.01_255)_100%)] max-[420px]:flex-col max-[420px]:items-stretch max-[420px]:rounded-[40px_14px_14px_40px] max-[420px]:pr-3 sm:gap-4 sm:p-4 sm:pr-5"
+      className="flex items-center gap-3 rounded-[44px_14px_14px_44px] p-3 pr-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-7px_0_rgba(0,0,0,0.38),0_26px_50px_rgba(60,15,0,0.45),0_2px_0_#0b0c0e] [background:linear-gradient(180deg,oklch(0.42_0.01_255)_0%,oklch(0.31_0.01_255)_34%,oklch(0.23_0.01_255)_100%)] max-[520px]:flex-col max-[520px]:items-stretch max-[520px]:rounded-[40px_14px_14px_40px] max-[520px]:pr-3 sm:gap-4 sm:p-4 sm:pr-5"
     >
-      <div className="flex h-[76px] min-w-[104px] shrink-0 flex-col justify-center gap-1.5 rounded-[30px_6px_6px_30px] bg-[oklch(0.15_0.008_255)] py-3 pr-3 pl-5 max-[420px]:h-14 max-[420px]:min-w-0 max-[420px]:flex-row max-[420px]:items-center max-[420px]:justify-between max-[420px]:py-2 max-[420px]:pr-5 shadow-[inset_0_2px_7px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.09)] sm:min-w-[120px]">
+      <div className="flex h-[76px] min-w-[104px] shrink-0 flex-col justify-center gap-1.5 rounded-[30px_6px_6px_30px] bg-[oklch(0.15_0.008_255)] py-3 pr-3 pl-5 max-[520px]:h-14 max-[520px]:min-w-0 max-[520px]:flex-row max-[520px]:items-center max-[520px]:justify-between max-[520px]:py-2 max-[520px]:pr-5 shadow-[inset_0_2px_7px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.09)] sm:min-w-[120px]">
         <div
           aria-hidden
           className="narrow num flex items-baseline gap-1 text-[40px] leading-none font-semibold tracking-[0.01em] text-signal [text-shadow:0_0_14px_oklch(0.65_0.205_38/0.7)]"
@@ -349,7 +363,7 @@ function Console({
           {KEYS.map((k) => (
             <span
               key={k.id}
-              className="narrow text-center text-[11px] font-semibold uppercase sm:text-[12px] sm:tracking-[0.04em]"
+              className="narrow text-center text-[11px] font-semibold uppercase max-[360px]:text-[10px] sm:text-[12px] sm:tracking-[0.04em]"
               style={{ color: flow === k.id ? "#f3efe8" : "#8e9094" }}
             >
               {t.flows[k.id].short}
