@@ -13,6 +13,8 @@
   --color-gun-3: oklch(0.44 0.01 255);
   --color-gun-hi: oklch(0.72 0.008 255);
   --color-ink: oklch(0.19 0.015 45);
+  /* Small text on vermilion: ink alone is 4.4:1 there, this clears 4.5. */
+  --color-ink-deep: oklch(0.13 0.012 45);
   --color-key: oklch(0.985 0.004 90);
 
   --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
@@ -24,6 +26,11 @@
 /* Phone layout of the exploded view. exploded.ts sets [data-compact] on the
    labels layer when the stage is narrower than 640px, so CSS and JS agree. */
 @custom-variant compact (&:where([data-compact] *));
+
+/* The page is laid out for the 3D world (canvas behind, sections transparent) unless WebGL is
+   missing or failed. layout.tsx sets html[data-world] before first paint. */
+@custom-variant world (html:is([data-world="pending"], [data-world="on"]) &);
+@custom-variant noworld (html:not([data-world="pending"], [data-world="on"]) &);
 
 /* Phones and any portrait screen: the "One minute" section stacks scene over text.
    minute.ts reads the same query, so CSS and JS agree. */
@@ -42,11 +49,15 @@
 
 html {
   scroll-behavior: smooth;
-  background: var(--color-ink);
+}
+
+/* world.ts writes --bg on body every frame it changes; this is only the colour before that. */
+html:is([data-world="pending"], [data-world="on"]) {
+  --bg: var(--color-signal);
 }
 
 body {
-  background: var(--color-paper);
+  background: var(--bg, var(--color-paper));
   color: var(--color-ink);
   font-family: var(--font-sans);
   font-stretch: 100%;
@@ -81,8 +92,27 @@ body {
   outline-offset: 3px;
 }
 
+/* With the world on, the canvas sits behind the content. Content takes pointer events, except
+   the configurator, whose empty stage lets drags reach the canvas while that station is live. */
+html:is([data-world="pending"], [data-world="on"]) main {
+  pointer-events: none;
+}
+html:is([data-world="pending"], [data-world="on"]) main > * {
+  pointer-events: auto;
+}
+html:is([data-world="pending"], [data-world="on"]) main > [data-station="cfg"] {
+  pointer-events: none;
+}
+html:is([data-world="pending"], [data-world="on"]) main > [data-station="cfg"] [data-live] {
+  pointer-events: auto;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+  /* Rest poses cross-fade; the page colour follows instead of snapping. */
+  body {
+    transition: background-color 0.35s var(--ease-out-quart);
   }
 }

@@ -22,7 +22,8 @@ export function Showrooms() {
   return (
     <section
       id="showrooms"
-      className="bg-signal px-[var(--pad)] py-[clamp(80px,11vw,160px)] text-ink"
+      data-station="rooms"
+      className="bg-signal px-[var(--pad)] py-[clamp(80px,11vw,160px)] text-ink-deep world:bg-transparent"
     >
       <Reveal className="flex flex-wrap items-end justify-between gap-x-12 gap-y-6">
         <h2 className="display text-[clamp(40px,14vw,56px)] text-paper sm:text-[clamp(56px,9vw,152px)]">

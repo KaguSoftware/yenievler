@@ -112,3 +112,12 @@ export type Dispose = () => void;
 
 /** Frame-rate independent exponential approach: 1 - exp(-dt * k). */
 export const damp = (dt: number, k: number) => 1 - Math.exp(-dt * k);
+
+/** Lazy, self-healing lookup for an element that React owns (it may remount). */
+export function domRef<T extends HTMLElement = HTMLElement>(selector: string) {
+  let el: T | null = null;
+  return () => {
+    if (!el || !el.isConnected) el = document.querySelector<T>(selector);
+    return el;
+  };
+}

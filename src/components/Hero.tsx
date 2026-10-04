@@ -1,21 +1,23 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   AnimatePresence,
   motion,
   useAnimationControls,
-  useReducedMotion,
   useScroll,
   useSpring,
   useTransform,
   type Variants,
 } from "framer-motion";
 import { FLOWS, FLOW_NAME, KEYS, type FlowId } from "@/lib/three/flows";
+import { ui } from "@/lib/three/state";
+import { useWorldStatus } from "@/lib/useWorldStatus";
 import { EXPO, SOFT_SPRING } from "@/lib/motion";
 
 const LINKS = [
   { href: "#range", label: "Range" },
+  { href: "#sink", label: "Sink" },
   { href: "#inside", label: "Inside" },
   { href: "#basin", label: "Basin builder" },
   { href: "#showrooms", label: "Showrooms" },
@@ -70,38 +72,25 @@ const KEY_DOWN =
 const lift = { y: -2 };
 const liftTransition = { duration: 0.3, ease: EXPO } as const;
 
+// Server and first client render agree (motion on); the real preference applies right after hydration.
+const subscribeReduced = (cb: () => void) => {
+  const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+  mq.addEventListener("change", cb);
+  return () => mq.removeEventListener("change", cb);
+};
+const readReduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 export function Hero() {
   const sec = useRef<HTMLElement>(null);
-  const stage = useRef<HTMLDivElement>(null);
   const [flow, setFlow] = useState<FlowId>("rain");
-  const flowRef = useRef<FlowId>("rain");
-  const [failed, setFailed] = useState(false);
+  const failed = useWorldStatus() === "failed";
 
+  // The world reads the mixer straight from here; no render on the scroll path.
   useEffect(() => {
-    flowRef.current = flow;
+    ui.flow = flow;
   }, [flow]);
 
-  useEffect(() => {
-    const el = stage.current;
-    if (!el) return;
-    let dispose: (() => void) | undefined;
-    let dead = false;
-    import("@/lib/three/hero")
-      .then(({ initHero }) => {
-        if (dead) return;
-        dispose = initHero(el, { getFlow: () => flowRef.current });
-      })
-      .catch((e) => {
-        console.error(e);
-        setFailed(true);
-      });
-    return () => {
-      dead = true;
-      dispose?.();
-    };
-  }, []);
-
-  const reduced = !!useReducedMotion();
+  const reduced = useSyncExternalStore(subscribeReduced, readReduced, () => false);
   // As the hero scrolls away its parts leave at different speeds: the title first, the mixer last.
   const { scrollYProgress } = useScroll({
     target: sec,
@@ -135,9 +124,9 @@ export function Hero() {
       ref={sec}
       id="top"
       aria-label="Nimbo"
-      className="relative isolate h-[100svh] min-h-[780px] overflow-hidden max-sm:min-h-[700px] bg-signal text-ink"
+      data-station="hero"
+      className="relative isolate h-[100svh] min-h-[780px] overflow-hidden max-sm:min-h-[700px] bg-signal text-ink-deep world:bg-transparent"
     >
-      <div ref={stage} className="absolute inset-0" aria-hidden />
       {failed && (
         <p className="absolute right-[var(--pad)] top-1/3 max-w-60 text-sm">
           The 3D scene needs WebGL. The rest of the page works without it.
@@ -227,7 +216,7 @@ export function Hero() {
             transition={{ duration: 1, ease: EXPO, delay: 0.56 }}
           >
             <Console flow={flow} rate={rate} onPick={pick} />
-            <p className="mt-3 text-right text-[13px] font-medium max-md:hidden">
+            <p className="mt-3 ml-auto w-fit rounded-full bg-ink-deep px-3 py-1 text-right text-[13px] font-medium text-paper max-md:hidden">
               Move your cursor through the rain.
             </p>
           </motion.div>

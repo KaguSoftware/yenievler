@@ -8,6 +8,8 @@ export interface Frame {
   dt: number;
   time: number;
   cam: THREE.PerspectiveCamera;
+  /** Where the camera looks this frame (stages may orbit the camera around it). */
+  look: THREE.Vector3;
   vw: number;
   vh: number;
   mobile: boolean;
@@ -38,6 +40,8 @@ export interface BuildCtx {
 export interface Stage {
   group: THREE.Group;
   update(f: Frame): void;
+  /** Cheap DOM sync that must run even while the stage is out of range (e.g. hiding its captions). */
+  always?(f: Frame): void;
   /** Viewport size changed (CSS px). */
   resize?(w: number, h: number, pr: number): void;
   dispose(): void;

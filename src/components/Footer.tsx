@@ -20,7 +20,8 @@ export function Footer() {
   return (
     <footer
       ref={ref}
-      className="overflow-hidden bg-ink px-[var(--pad)] pt-[clamp(48px,6vw,80px)] pb-9 text-paper"
+      data-station="foot"
+      className="overflow-hidden bg-ink px-[var(--pad)] pt-[clamp(48px,6vw,80px)] pb-9 text-paper world:bg-transparent"
     >
       <div
         aria-hidden
@@ -33,8 +34,8 @@ export function Footer() {
           </Letter>
         ))}
       </div>
-      <div className="mt-8 flex flex-wrap justify-between gap-x-8 gap-y-4 text-[14px] text-paper/60">
-        <span>© 2026 Nimbo. Showers, basins, taps and baths.</span>
+      <div className="mt-8 flex flex-wrap justify-between gap-x-8 gap-y-4 text-[14px] text-paper/80">
+        <span>© 2026 Nimbo. Showers, basins, taps, baths and sinks.</span>
         <div className="flex flex-wrap gap-x-7 gap-y-2">
           <a href="mailto:trade@nimbo.example" className="hover:text-paper">
             Trade programme

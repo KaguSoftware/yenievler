@@ -107,7 +107,8 @@ export function Range() {
   return (
     <section
       id="range"
-      className="bg-paper px-[var(--pad)] py-[clamp(80px,11vw,160px)]"
+      data-station="range"
+      className="bg-paper px-[var(--pad)] py-[clamp(80px,11vw,160px)] world:bg-transparent"
     >
       <Reveal>
         <h2 className="display max-w-[20ch] text-[clamp(44px,6.4vw,108px)] text-balance">
@@ -220,7 +221,7 @@ export function Range() {
                   style={{ fontWeight: idx === i ? 700 : 450 }}
                 >
                   <span>{it.name}</span>
-                  <span className="text-ink/60" style={{ fontWeight: 450 }}>
+                  <span className="text-ink/72" style={{ fontWeight: 450 }}>
                     {it.mat}
                   </span>
                 </button>
@@ -267,7 +268,7 @@ function Tab({
       transition={{ duration: 1.2, ease: EXPO, delay: idx * 0.09 }}
       className="display flex items-baseline gap-5 border-t border-ink/15 py-[0.12em] text-left text-[clamp(64px,10vw,168px)] last:border-b"
     >
-      <span className="narrow num w-8 shrink-0 text-[15px] font-semibold tracking-normal text-ink/60">
+      <span className="narrow num w-8 shrink-0 text-[15px] font-semibold tracking-normal text-ink/72">
         0{idx + 1}
       </span>
       <motion.span

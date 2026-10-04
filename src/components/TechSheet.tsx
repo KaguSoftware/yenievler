@@ -43,7 +43,8 @@ export function TechSheet() {
     <section
       ref={ref}
       aria-label="Performance"
-      className="bg-gun px-[var(--pad)] pt-[clamp(40px,6vw,80px)] pb-[clamp(96px,13vw,200px)] text-paper"
+      data-station="tech"
+      className="bg-gun px-[var(--pad)] pt-[clamp(40px,6vw,80px)] pb-[clamp(96px,13vw,200px)] text-paper world:bg-transparent"
     >
       <p className="wide max-w-[24ch] text-[clamp(30px,4.6vw,76px)] leading-[1.04] font-bold tracking-[-0.03em] text-paper/90">
         {COPY.map(([w, hl], i) => (
@@ -69,7 +70,7 @@ function Word({
   hl: boolean;
   children: string;
 }) {
-  const opacity = useTransform(p, [from * 0.92, to * 0.92], [0.18, 1], {
+  const opacity = useTransform(p, [from * 0.92, to * 0.92], [0.6, 1], {
     clamp: true,
   });
   return (

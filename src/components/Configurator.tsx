@@ -1,40 +1,22 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { FINISHES, STONES } from "@/lib/three/stone";
-import type { BasinHandle } from "@/lib/three/basin";
+import { ui } from "@/lib/three/state";
 
 const fmt = (n: number) => "€ " + n.toLocaleString("en-US");
 
 export function Configurator() {
-  const stage = useRef<HTMLDivElement>(null);
-  const handle = useRef<BasinHandle | null>(null);
   const [stone, setStone] = useState(0);
   const [finish, setFinish] = useState(0);
   const [water, setWater] = useState(true);
-  const state = useRef({ stone, finish, water });
 
+  // The world reads the picks straight from here; the basin updates without a render.
   useEffect(() => {
-    state.current = { stone, finish, water };
-    handle.current?.apply();
+    ui.stone = stone;
+    ui.finish = finish;
+    ui.water = water;
   }, [stone, finish, water]);
-
-  useEffect(() => {
-    const el = stage.current;
-    if (!el) return;
-    let dead = false;
-    import("@/lib/three/basin")
-      .then(({ initBasin }) => {
-        if (dead) return;
-        handle.current = initBasin(el, () => state.current);
-      })
-      .catch(console.error);
-    return () => {
-      dead = true;
-      handle.current?.dispose();
-      handle.current = null;
-    };
-  }, []);
 
   const st = STONES[stone];
   const fi = FINISHES[finish];
@@ -42,21 +24,19 @@ export function Configurator() {
   return (
     <section
       id="basin"
+      data-station="cfg"
       aria-label="Basin builder"
-      className="grid border-y border-ink/10 bg-mist lg:grid-cols-[minmax(0,1.7fr)_minmax(380px,1fr)]"
+      className="grid border-y border-ink/10 bg-mist world:bg-transparent world:lg:grid-cols-[minmax(0,1.7fr)_minmax(380px,1fr)] noworld:lg:grid-cols-[minmax(0,1fr)]"
     >
-      <div className="relative min-h-[min(86vh,820px)] min-w-0 max-lg:min-h-[480px]">
-        <div
-          ref={stage}
-          className="absolute inset-0 cursor-grab touch-pan-y"
-          role="img"
-          aria-label={`3D basin in ${st.name} with ${fi.name.toLowerCase()} fittings. Drag to orbit.`}
-        />
-        <p className="pointer-events-none absolute top-7 left-[var(--pad)] text-[14px] font-semibold text-ink/60">
+      {/* The basin is drawn by the shared canvas, centred on this window (data-world-pin). */}
+      <div className="noworld:hidden relative min-h-[min(86vh,820px)] min-w-0 max-lg:min-h-[min(56svh,480px)]">
+        <div data-world-pin="" className="pointer-events-none absolute inset-0" />
+        <p className="pointer-events-none absolute top-7 left-[var(--pad)] rounded-full bg-paper/85 px-3 py-1 text-[14px] font-semibold text-ink">
           Drag to orbit
         </p>
         <button
           type="button"
+          data-live=""
           aria-pressed={water}
           onClick={() => setWater((w) => !w)}
           className="absolute bottom-7 left-[var(--pad)] flex items-center gap-2.5 rounded-full border border-ink/25 bg-paper/80 px-[18px] py-2.5 text-[14px] font-semibold transition-colors duration-200 hover:border-ink"
@@ -69,7 +49,7 @@ export function Configurator() {
         </button>
       </div>
 
-      <div className="flex flex-col gap-7 border-ink/10 px-[var(--pad)] py-[clamp(32px,4vw,56px)] lg:border-l">
+      <div data-live="" className="world:bg-mist flex flex-col gap-7 border-ink/10 px-[var(--pad)] py-[clamp(32px,4vw,56px)] lg:border-l noworld:lg:border-l-0">
         <div className="flex flex-col gap-3.5">
           <h2 className="display text-[clamp(40px,4.4vw,72px)]">Build a basin.</h2>
           <p className="max-w-[34ch] text-[17px] leading-[1.45]">

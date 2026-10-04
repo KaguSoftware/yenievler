@@ -32,4 +32,4 @@ export const worldStatus = {
 };
 
 /** Debug and test hook: where the world is, readable without touching React. */
-export const probe = { p: 0, target: 0, key: "", w: 0 };
+export const probe = { p: 0, target: 0, key: "", w: 0, frames: 0, follow: 0, keyP: {} as Record<string, number> };

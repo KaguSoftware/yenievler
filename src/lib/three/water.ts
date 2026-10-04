@@ -56,6 +56,8 @@ export interface Water extends Stage {
     look: THREE.Vector3,
   ): void;
   floorShown(): boolean;
+  /** Push the surface at a world point (a hand passing over the floor). */
+  poke(x: number, z: number, a: number): void;
 }
 
 export function buildWater(density = 1): Water {
@@ -80,6 +82,7 @@ export function buildWater(density = 1): Water {
       uTime: { value: 0 },
       uOff: { value: new THREE.Vector2() },
       uVis: { value: 1 },
+      uGloss: { value: 1 },
       uFade: { value: new THREE.Vector2(4.2, 7.6) },
     },
     vertexShader: /* glsl */ `
@@ -92,7 +95,7 @@ export function buildWater(density = 1): Water {
       }`,
     fragmentShader: /* glsl */ `
       uniform sampler2D tR; uniform vec3 camPos; uniform float uWet; uniform vec3 uTint; uniform vec3 uDry; uniform vec3 uFog;
-      uniform float uRad; uniform float uTime; uniform vec2 uOff; uniform float uVis; uniform vec2 uFade;
+      uniform float uRad; uniform float uTime; uniform vec2 uOff; uniform float uVis; uniform vec2 uFade; uniform float uGloss;
       varying vec4 vR; varying vec3 vN; varying vec3 vW; varying vec2 vL;
       #include <common>
       void main(){
@@ -109,8 +112,8 @@ export function buildWater(density = 1): Water {
         vec3 base = mix(uDry, mix(uDry * 0.9, uTint, 0.5), wet);
         base *= 1.0 - slope * 10.0 * wet;
         vec3 h = normalize(normalize(vec3(-0.3, 1.0, 0.6)) + v);
-        float spec = pow(max(dot(n, h), 0.0), 140.0) * 2.4 * wet;
-        vec3 col = mix(base, refl * vec3(0.9, 0.86, 0.84), (0.32 + 0.6 * f) * wet + 0.03) + spec;
+        float spec = pow(max(dot(n, h), 0.0), 140.0) * 2.4 * wet * uGloss;
+        vec3 col = mix(base, refl * vec3(0.9, 0.86, 0.84), ((0.32 + 0.6 * f) * wet + 0.03) * uGloss) + spec;
         col = mix(col, col * 0.78, smoothstep(edge * 0.95, edge * 0.82, d) * (1.0 - smoothstep(edge * 0.82, edge * 0.6, d)) * uWet);
         gl_FragColor = vec4(col, 1.0);
         #include <colorspace_fragment>
@@ -263,6 +266,8 @@ export function buildWater(density = 1): Water {
   let frozenFor = -1;
   let shown = false;
   let seeded = false;
+  let fieldAcc = 0;
+  const clip = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
   const scatter = (colTarget: number, spillTarget: number, fieldTarget: number) => {
     // Reduced motion: the drops hang in the air as short streaks, spread along their fall.
@@ -285,6 +290,7 @@ export function buildWater(density = 1): Water {
     ground = s[C.ground];
     floor.position.y = ground;
     shown = s[C.floor] > 0.01;
+    floor.visible = shown;
     emitY = s[C.emitY];
     emitK = s[C.emitR] / 1.125;
     fieldY = ground + 9;
@@ -390,7 +396,8 @@ export function buildWater(density = 1): Water {
         ended = true;
       } else if (y <= ground) {
         if (sim) {
-          impulse(dp[k], dp[k + 2], F.a);
+          // The overflow sheet and the field land on few cells or many drops: keep their ripples gentle.
+          impulse(dp[k], dp[k + 2], F.a * (i < N_COL ? 1 : i < N_COL + N_SPILL ? 0.05 : 1));
           const rr = Math.random();
           if (rr < 0.04) {
             const cn = 6 + ((Math.random() * 3) | 0);
@@ -447,11 +454,21 @@ export function buildWater(density = 1): Water {
     spGeo.attributes.position.needsUpdate = true;
 
     if (sim) {
-      stepField();
-      const amp = s[C.amp];
-      for (let i = 0; i < GRID * GRID; i++) pa[i * 3 + 1] = cur[i] * amp;
-      geo.attributes.position.needsUpdate = true;
-      geo.computeVertexNormals();
+      // The surface runs at a fixed 60 Hz whatever the frame rate, so ripples look the same everywhere.
+      fieldAcc += dt;
+      let steps = 0;
+      while (fieldAcc >= 1 / 60 && steps < 3) {
+        stepField();
+        fieldAcc -= 1 / 60;
+        steps++;
+      }
+      if (fieldAcc > 1 / 60) fieldAcc = 0;
+      if (steps) {
+        const amp = s[C.amp];
+        for (let i = 0; i < GRID * GRID; i++) pa[i * 3 + 1] = cur[i] * amp;
+        geo.attributes.position.needsUpdate = true;
+        geo.computeVertexNormals();
+      }
     }
     driveFloor(f, colTarget);
   };
@@ -463,6 +480,7 @@ export function buildWater(density = 1): Water {
     const dt = f.dt;
     U.uTime.value += dt;
     U.uVis.value = s[C.floor];
+    U.uGloss.value = s[C.gloss];
     // The hero floor wets out over time while the rain runs; below it the timeline decides.
     const temporal = s[C.ground] > -0.5 && s[C.floor] > 0.5;
     if (temporal) {
@@ -502,6 +520,7 @@ export function buildWater(density = 1): Water {
     pool,
     spill: spillSrc,
     floorShown: () => shown,
+    poke: impulse,
     update,
     resize(w, h, pr) {
       rt.setSize(Math.max(2, Math.round(w * pr * 0.5)), Math.max(2, Math.round(h * pr * 0.5)));
@@ -519,9 +538,13 @@ export function buildWater(density = 1): Water {
       tm.multiply(mcam.projectionMatrix).multiply(mcam.matrixWorldInverse).multiply(floor.matrixWorld);
       mat.uniforms.camPos.value.copy(cam.position);
       floor.visible = false;
+      // Only what stands above the water may be reflected in it.
+      clip.constant = -(gy + 0.005);
+      renderer.clippingPlanes = [clip];
       renderer.setRenderTarget(rt);
       renderer.render(scene, mcam);
       renderer.setRenderTarget(null);
+      renderer.clippingPlanes = [];
       floor.visible = true;
     },
     dispose() {
