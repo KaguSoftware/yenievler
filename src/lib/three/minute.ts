@@ -8,7 +8,7 @@ import {
 } from "./common";
 import {
   CAPACITY,
-  RATE_NIMBO,
+  RATE_YENI_EVLER_YAPI,
   RATE_STANDARD,
   arrive,
   fill,
@@ -39,7 +39,7 @@ const FACE_Y = 4.85;
 const TILT = -0.45;
 const FOV = 22;
 
-type Kind = "standard" | "nimbo";
+type Kind = "standard" | "yeni-evler-yapi";
 
 const GLASS_VS = /* glsl */ `
   varying vec3 vN; varying vec3 vV; varying vec3 vP;
@@ -218,7 +218,7 @@ export function initMinute(el: HTMLElement, o: MinuteOptions): Dispose {
 
   function makeRig(kind: Kind) {
     const isStd = kind === "standard";
-    const rate = isStd ? RATE_STANDARD : RATE_NIMBO;
+    const rate = isStd ? RATE_STANDARD : RATE_YENI_EVLER_YAPI;
     const g = new THREE.Group();
     world.add(g);
 
@@ -490,7 +490,7 @@ export function initMinute(el: HTMLElement, o: MinuteOptions): Dispose {
   }
 
   const rigA = makeRig("standard");
-  const rigB = makeRig("nimbo");
+  const rigB = makeRig("yeni-evler-yapi");
 
   let dirty = true;
   const compactMq = window.matchMedia(

@@ -4,6 +4,8 @@
  * Read it as a table. Each key says "when the page has scrolled to HERE, the world is like THIS".
  * A key only lists what changes; everything else carries over from the key before it.
  * Between two keys every channel is blended with smoothstep (or linearly, with `linear: true`).
+ * Smoothstep stops dead at every key; a run of `glide: true` keys is one spline instead, so the
+ * camera keeps its speed through the keys inside the run and only eases in and out at its ends.
  *
  * Positions are anchored to the DOM so the choreography survives any viewport height:
  *   top("range", -1)   the section's top edge is at the bottom of the viewport (it is just arriving)
@@ -116,6 +118,11 @@ export interface KeyDef {
   at: Anchor;
   /** Ease of the segment that ENDS at this key. Default smoothstep. */
   linear?: boolean;
+  /**
+   * The segment that ENDS at this key is part of a spline run: where two glide segments meet, the
+   * channels keep moving through the key (monotone, so nothing overshoots its keyed values).
+   */
+  glide?: boolean;
   cam?: V3;
   look?: V3;
   fov?: number;
@@ -182,7 +189,7 @@ const DESKTOP: KeyDef[] = [
     cam: [-1.9, 2.4, 10.5], look: [-1.1, 2.25, 0], fov: 36,
     bg: SIGNAL, fog: [60, 120],
     head: 1, stack: 0, basin: 0, floor: 1, fx: 0,
-    explode: 0, tilt: -0.42, spin: 0, labels: 0, caption: 0,
+    explode: 0, tilt: 0, spin: 0, labels: 0, caption: 0,
     water: 1, emit: [HEAD_Y - 0.05, 1.125], tone: 0,
     ground: GROUND_HI, wet: 0, spread: 0, amp: 0.06, tint: SIGNAL_DEEP, fade: [4.2, 7.6],
     overflow: 0, field: 0, sink: 0, cfg: 0, pin: 0, para: 1, gloss: 1,
@@ -195,12 +202,14 @@ const DESKTOP: KeyDef[] = [
     at: top("inside", 0),
     cam: [0.1, 3.3, 9.8], look: [1.4, 4.6, 0], fov: 30, para: 0,
   },
-  { name: "swap-a", at: top("inside", 0.12), head: 1, stack: 0 },
-  { name: "swap-b", at: top("inside", 0.2), head: 0, stack: 1 },
   { name: "dim-start", at: top("inside", 0.25), bg: SIGNAL, explode: 0, fog: [60, 120] },
+  // The hero head tilts towards us as the light goes.
   // The title waits for the dark: its accent word is the same vermilion as the hero.
-  { name: "gun", at: top("inside", 0.6), bg: GUN, fog: [14, 46], floor: 0, caption: 0 },
+  { name: "gun", at: top("inside", 0.6), bg: GUN, fog: [14, 46], floor: 0, caption: 0, tilt: -0.42 },
   { name: "title", at: top("inside", 0.8), caption: 1 },
+  // The layered stack only takes over once the parts have begun to separate, so the swap hides in the motion.
+  { name: "swap-a", at: top("inside", 0.82), head: 1, stack: 0, explode: 0.015 },
+  { name: "swap-b", at: top("inside", 0.84), head: 0, stack: 1, explode: 0.04 },
   {
     name: "explode",
     at: top("inside", 1.1),
@@ -307,27 +316,40 @@ const DESKTOP: KeyDef[] = [
     at: top("sink-spec", 0),
     cam: [1.1, SK + 1.95, 1.75], look: [0, SK - 0.02, -0.05], fov: 86, sinkLive: 1, pin: 1,
   },
-  { name: "sink-spec-hold", at: end("sink-spec", 0.1) },
-  // Still pinned while the last spec rows leave, so the sink goes up and away with its window and
-  // nothing dark slides in behind the text. Everything after this is in the empty "drain" spacer.
-  { name: "sink-spec-out", at: end("sink-spec", 1) },
+  // The dive. The section ends in an empty outro ("sink-dive") that keeps the sticky window on screen:
+  // the words and the console drop away over it (Sink.tsx), the pin lets go while the window is still
+  // in view, so the sink grows out of it to fill the screen, and the camera goes into the bowl.
+  { name: "sink-spec-hold", at: top("sink-dive", -0.2) },
+  // Desktop: the camera sets off as the last words go. Phones have no sticky window (it is long gone
+  // by now), so the world veils into the paper here and the pin lets go behind the veil.
+  // From here to the plunge is one glide run: the camera never stops at a key on the way down.
+  { name: "dive-veil", at: top("sink-dive", -0.1) },
+  {
+    name: "dive-free",
+    at: top("sink-dive", 0.35),
+    glide: true,
+    cam: [0.75, SK + 1.75, 1.35], look: [0.12, SK - 0.25, 0.02], fov: 40, pin: 0, shift: [0, 0],
+  },
 
   // Down the drain: the plug lifts, the bowl empties in a vortex, the camera drops through the hole
   // and the world veils to near-black. In the dark it is moved to the basin; the veil lifts there.
   {
     name: "drain-a",
-    at: top("drain", 0.2),
-    cam: [0.35, SK + 1.45, 0.8], look: SINK_DRAIN, fov: 36, pin: 0, sinkDrain: 0.35, shift: [0, 0],
+    at: top("sink-dive", 0.52),
+    glide: true,
+    cam: [0.42, SK + 1.2, 0.75], look: SINK_DRAIN, fov: 40, sinkDrain: 0.35, veil: 0,
   },
-  // A beat at the brink, then the plunge.
+  // Over the brink and into the plunge, without slowing down.
   {
     name: "drain-mouth",
-    at: top("drain", 0.5),
+    at: top("drain", -0.6),
+    glide: true,
     cam: [SINK_DRAIN[0] + 0.02, SINK_DRAIN[1] + 0.55, SINK_DRAIN[2] + 0.12], look: SINK_DRAIN, fov: 44, sinkDrain: 0.8,
   },
   {
     name: "drain-b",
-    at: top("drain", 0.68),
+    at: top("drain", -0.1),
+    glide: true,
     veil: 1,
     cam: [SINK_DRAIN[0], SINK_DRAIN[1] - 0.25, SINK_DRAIN[2] + 0.001],
     look: [SINK_DRAIN[0], SINK_DRAIN[1] - 3, SINK_DRAIN[2]],
@@ -335,12 +357,12 @@ const DESKTOP: KeyDef[] = [
   },
   {
     name: "pipe",
-    at: top("drain", 0.76),
+    at: top("drain", -0.04),
     cam: [1.6, G + 6.2, 3.2], look: BF, fov: 34, fx: 0.2,
     sinkOn: 0, sinkLive: 0, basin: 1, pin: 1, water: 0.15, emit: [SPOUT_Y, 0.012],
   },
   // Up out of the dark onto mist while the spacer is still empty, before the basin builder scrolls in.
-  { name: "pipe-out", at: top("drain", 1.1), bg: MIST, veil: 0 },
+  { name: "pipe-out", at: top("drain", 0.28), bg: MIST, veil: 0 },
 
   // 4 BASIN: the curtain narrows into the stream, the basin rises out of the fog, the camera settles.
   {
@@ -352,7 +374,8 @@ const DESKTOP: KeyDef[] = [
   {
     name: "basin",
     at: top("cfg", -0.15),
-    cam: [2.04, G + 2.85, 3.47], look: BF, fov: 26, fog: [7, 14],
+    // Pulled back so the whole 2.4-wide slab, basin and spout sit inside the pinned window with air around them.
+    cam: [3.06, G + 3.53, 5.13], look: BF, fov: 28, fog: [8, 20],
     fx: 0, water: 0.1, cfg: 1, pin: 1,
   },
   { name: "basin-hold", at: end("cfg", 0.1) },
@@ -431,6 +454,9 @@ const MOBILE: Record<string, Partial<KeyDef>> = {
   "sink-wide": { cam: [1.6, SK + 2.7, 3.8], look: [0, SK + 0.05, -0.05], shift: [0, -1.6] },
   // The phone window is square, about 0.42 of the screen: a wider lens still.
   "sink-spec": { cam: [1.3, SK + 2.0, 2.2], fov: 113 },
+  "sink-spec-hold": { veil: 0 },
+  "dive-veil": { at: top("sink-dive", 0), veil: 1 },
+  "dive-free": { at: top("sink-dive", 0.42), cam: [0.5, SK + 2.3, 1.45], fov: 50 },
   "drain-a": { cam: [0.3, SK + 1.9, 1.0], fov: 44 },
   "drain-mouth": { fov: 52 },
   "drain-b": { fov: 70 },
@@ -454,6 +480,9 @@ export interface Timeline {
   /** Resolved master progress per key, strictly ascending. */
   p: Float64Array;
   linear: Uint8Array;
+  glide: Uint8Array;
+  /** Slope of every channel at every key, per unit of progress. Zero except inside glide runs. */
+  slope: Float64Array[];
   /** Last segment used, so sampling is O(1) while scrolling. */
   cur: number;
 }
@@ -550,6 +579,8 @@ export function buildTimeline(kind: Kind): Timeline {
     data,
     p: new Float64Array(defs.length),
     linear: Uint8Array.from(defs.map((d) => (d.linear ? 1 : 0))),
+    glide: Uint8Array.from(defs.map((d) => (d.glide ? 1 : 0))),
+    slope: defs.map(() => new Float64Array(N_CH)),
     cur: 0,
   };
 }
@@ -586,6 +617,25 @@ export function resolveTimeline(tl: Timeline, g: Geometry) {
     const cap = 1 - (n - 1 - i) / max;
     if (tl.p[i] > cap) tl.p[i] = cap;
   }
+  // Slopes for the glide runs (monotone cubic, Fritsch-Butland): a channel that turns round at a key,
+  // or holds still on either side of it, stops there; everything else keeps its speed through it.
+  for (let j = 0; j < n; j++) {
+    const m = tl.slope[j];
+    m.fill(0);
+    if (j === 0 || j === n - 1 || !tl.glide[j] || !tl.glide[j + 1]) continue;
+    const h0 = tl.p[j] - tl.p[j - 1];
+    const h1 = tl.p[j + 1] - tl.p[j];
+    const w0 = 2 * h1 + h0;
+    const w1 = h1 + 2 * h0;
+    const a = tl.data[j - 1];
+    const b = tl.data[j];
+    const c = tl.data[j + 1];
+    for (let k = 0; k < N_CH; k++) {
+      const d0 = (b[k] - a[k]) / h0;
+      const d1 = (c[k] - b[k]) / h1;
+      if (d0 * d1 > 0) m[k] = (w0 + w1) / (w0 / d0 + w1 / d1);
+    }
+  }
 }
 
 const smoothstep = (t: number) => t * t * (3 - 2 * t);
@@ -610,6 +660,18 @@ export function sampleTimeline(tl: Timeline, P: number, out: Float64Array) {
   const b = tl.data[i + 1];
   const span = tl.p[i + 1] - tl.p[i];
   const t = span > 0 ? (P - tl.p[i]) / span : 1;
+  if (tl.glide[i + 1]) {
+    // Cubic Hermite with the slopes from resolveTimeline; with both slopes zero it is smoothstep.
+    const ma = tl.slope[i];
+    const mb = tl.slope[i + 1];
+    const t2 = t * t;
+    const t3 = t2 * t;
+    const h01 = 3 * t2 - 2 * t3;
+    const h10 = (t3 - 2 * t2 + t) * span;
+    const h11 = (t3 - t2) * span;
+    for (let c = 0; c < N_CH; c++) out[c] = a[c] + (b[c] - a[c]) * h01 + ma[c] * h10 + mb[c] * h11;
+    return;
+  }
   const s = tl.linear[i + 1] ? t : smoothstep(t);
   for (let c = 0; c < N_CH; c++) out[c] = a[c] + (b[c] - a[c]) * s;
 }

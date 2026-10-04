@@ -20,29 +20,32 @@ export function buildHero(ctx: BuildCtx, water: Water): Stage {
     clearcoatRoughness: 0.04,
     envMap: ctx.envHero,
   });
+  // Head, arm and nozzles pivot about the head centre so they tilt with the stack they swap into.
+  const rig = new THREE.Group();
+  rig.position.y = HEAD_Y;
+  group.add(rig);
   const head = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 0.07, 160), chrome);
-  head.position.y = HEAD_Y;
-  group.add(head);
+  rig.add(head);
   const faceMat = new THREE.MeshStandardMaterial({ color: 0x1b1b1b, metalness: 0.7, roughness: 0.5, envMap: ctx.envHero });
   const face = new THREE.Mesh(new THREE.CircleGeometry(R * 0.965, 160), faceMat);
   face.rotation.x = Math.PI / 2;
-  face.position.y = HEAD_Y - 0.0365;
-  group.add(face);
+  face.position.y = -0.0365;
+  rig.add(face);
   const nozzles = nozzlePositions(R);
   const nzMat = new THREE.MeshStandardMaterial({ color: 0x8a8a8a, metalness: 0.2, roughness: 0.4, envMap: ctx.envHero });
   const nz = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.014, 0.014, 0.012, 8), nzMat, nozzles.length);
   const m4 = new THREE.Matrix4();
   nozzles.forEach(([x, z], i) => {
-    m4.makeTranslation(x, HEAD_Y - 0.042, z);
+    m4.makeTranslation(x, -0.042, z);
     nz.setMatrixAt(i, m4);
   });
-  group.add(nz);
+  rig.add(nz);
   const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 5, 32), chrome);
-  arm.position.y = HEAD_Y + 2.5;
-  group.add(arm);
+  arm.position.y = 2.5;
+  rig.add(arm);
   const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.14, 48), chrome);
-  collar.position.y = HEAD_Y + 0.1;
-  group.add(collar);
+  collar.position.y = 0.1;
+  rig.add(collar);
 
   const spot = new THREE.SpotLight(0xffffff, 80, 14, 0.6, 1, 1.4);
   spot.position.set(0, HEAD_Y - 0.1, 0);
@@ -76,6 +79,7 @@ export function buildHero(ctx: BuildCtx, water: Water): Stage {
     update(f: Frame) {
       const s = f.s;
       const ground = s[C.ground];
+      rig.rotation.x = s[C.tilt];
       const on = f.flow !== "off";
       spot.intensity += ((on ? 80 : 0) - spot.intensity) * Math.min(1, f.dt * 3);
 

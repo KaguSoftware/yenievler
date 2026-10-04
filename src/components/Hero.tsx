@@ -10,18 +10,19 @@ import {
   useTransform,
   type Variants,
 } from "framer-motion";
-import { FLOWS, FLOW_NAME, KEYS, type FlowId } from "@/lib/three/flows";
+import { FLOWS, KEYS, type FlowId } from "@/lib/three/flows";
 import { ui } from "@/lib/three/state";
 import { useWorldStatus } from "@/lib/useWorldStatus";
 import { EXPO, SOFT_SPRING } from "@/lib/motion";
+import { fill, useI18n } from "@/i18n/provider";
 
 const LINKS = [
-  { href: "#range", label: "Range" },
-  { href: "#sink", label: "Sink" },
-  { href: "#inside", label: "Inside" },
-  { href: "#basin", label: "Basin builder" },
-  { href: "#showrooms", label: "Showrooms" },
-];
+  { href: "#range", key: "range" },
+  { href: "#sink", key: "sink" },
+  { href: "#inside", key: "inside" },
+  { href: "#basin", key: "basin" },
+  { href: "#showrooms", key: "showrooms" },
+] as const;
 
 const ENTER: Variants = {
   hidden: { opacity: 0, y: "0.5em" },
@@ -84,6 +85,7 @@ export function Hero() {
   const sec = useRef<HTMLElement>(null);
   const [flow, setFlow] = useState<FlowId>("rain");
   const failed = useWorldStatus() === "failed";
+  const { t } = useI18n();
 
   // The world reads the mixer straight from here; no render on the scroll path.
   useEffect(() => {
@@ -123,13 +125,13 @@ export function Hero() {
     <section
       ref={sec}
       id="top"
-      aria-label="Nimbo"
+      aria-label="Yeni Evler Yapı"
       data-station="hero"
       className="relative isolate h-[100svh] min-h-[780px] overflow-hidden max-sm:min-h-[700px] bg-signal text-ink-deep world:bg-transparent"
     >
       {failed && (
         <p className="absolute right-[var(--pad)] top-1/3 max-w-60 text-sm">
-          The 3D scene needs WebGL. The rest of the page works without it.
+          {t.hero.noWebgl}
         </p>
       )}
 
@@ -144,7 +146,7 @@ export function Hero() {
             href="#top"
             className="wide text-[28px] font-black leading-none tracking-[-0.05em] text-paper max-sm:order-1"
           >
-            nimbo
+            yeni evler yapı
           </a>
           <ul className="flex flex-wrap gap-x-7 gap-y-0 text-[15px] font-medium max-sm:order-3 max-sm:w-full max-sm:gap-x-5 max-sm:text-[14px]">
             {LINKS.map((l) => (
@@ -153,7 +155,7 @@ export function Hero() {
                   href={l.href}
                   className="inline-block underline-offset-[6px] transition-[text-decoration-color] hover:underline max-sm:py-1.5"
                 >
-                  {l.label}
+                  {t.nav[l.key]}
                 </a>
               </li>
             ))}
@@ -165,7 +167,7 @@ export function Hero() {
           transition={liftTransition}
           className="rounded-full bg-ink px-5 py-2.5 text-[15px] font-semibold text-paper max-sm:order-2 max-sm:px-4 max-sm:py-2 max-sm:text-[14px]"
         >
-          Find a showroom
+          {t.nav.findShowroom}
         </motion.a>
       </motion.nav>
 
@@ -173,13 +175,13 @@ export function Hero() {
         <div className="max-w-[760px]">
           <motion.div style={scrollOut(titleY, titleO)}>
             <motion.h1
-              aria-label="Rain, played."
+              aria-label={`${t.hero.titleA} ${t.hero.titleB}`}
               className="display text-[clamp(52px,17.5vw,68px)] text-paper sm:text-[clamp(68px,10vw,168px)]"
               initial="hidden"
               animate={titleCtl}
             >
-              <Letters text="Rain," base={0} />
-              <Letters text="played." base={5} play />
+              <Letters text={t.hero.titleA} base={0} />
+              <Letters text={t.hero.titleB} base={Array.from(t.hero.titleA).length} play />
             </motion.h1>
           </motion.div>
           <motion.div style={scrollOut(copyY, titleO)}>
@@ -190,8 +192,7 @@ export function Hero() {
               transition={{ duration: 1, ease: EXPO, delay: 0.42 }}
             >
               <p className="max-w-[34ch] text-[17px] leading-[1.45] font-medium">
-                Thermostatic shower systems with a seven-key mixer, in solid
-                brass. Press a key, change the weather.
+                {t.hero.lede}
               </p>
               <motion.a
                 href="#range"
@@ -199,7 +200,7 @@ export function Hero() {
                 transition={liftTransition}
                 className="pointer-events-auto rounded-full bg-paper px-6 py-3 text-[15px] font-semibold"
               >
-                See the range
+                {t.hero.seeRange}
               </motion.a>
             </motion.div>
           </motion.div>
@@ -217,7 +218,7 @@ export function Hero() {
           >
             <Console flow={flow} rate={rate} onPick={pick} />
             <p className="mt-3 ml-auto w-fit rounded-full bg-ink-deep px-3 py-1 text-right text-[13px] font-medium text-paper max-md:hidden">
-              Move your cursor through the rain.
+              {t.hero.cursorHint}
             </p>
           </motion.div>
         </motion.div>
@@ -244,11 +245,13 @@ function Console({
   useEffect(() => {
     rateMV.set(rate);
   }, [rate, rateMV]);
-  const rateText = useTransform(rateMV, (v) => v.toFixed(1));
+  const { t } = useI18n();
+  const rateText = useTransform(rateMV, (v) => v.toFixed(1).replace(".", t.decimal));
+  const flowName = t.flows[flow].name;
   return (
     <div
       role="group"
-      aria-label="Shower mixer"
+      aria-label={t.hero.mixerLabel}
       className="flex items-center gap-3 rounded-[44px_14px_14px_44px] p-3 pr-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-7px_0_rgba(0,0,0,0.38),0_26px_50px_rgba(60,15,0,0.45),0_2px_0_#0b0c0e] [background:linear-gradient(180deg,oklch(0.42_0.01_255)_0%,oklch(0.31_0.01_255)_34%,oklch(0.23_0.01_255)_100%)] max-[420px]:flex-col max-[420px]:items-stretch max-[420px]:rounded-[40px_14px_14px_40px] max-[420px]:pr-3 sm:gap-4 sm:p-4 sm:pr-5"
     >
       <div className="flex h-[76px] min-w-[104px] shrink-0 flex-col justify-center gap-1.5 rounded-[30px_6px_6px_30px] bg-[oklch(0.15_0.008_255)] py-3 pr-3 pl-5 max-[420px]:h-14 max-[420px]:min-w-0 max-[420px]:flex-row max-[420px]:items-center max-[420px]:justify-between max-[420px]:py-2 max-[420px]:pr-5 shadow-[inset_0_2px_7px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.09)] sm:min-w-[120px]">
@@ -257,7 +260,7 @@ function Console({
           className="narrow num flex items-baseline gap-1 text-[40px] leading-none font-semibold tracking-[0.01em] text-signal [text-shadow:0_0_14px_oklch(0.65_0.205_38/0.7)]"
         >
           <motion.span>{rateText}</motion.span>
-          <span className="text-[13px] font-medium tracking-wider">L/min</span>
+          <span className="text-[13px] font-medium tracking-wider">{t.hero.unit}</span>
         </div>
         <div
           aria-hidden
@@ -272,12 +275,12 @@ function Console({
               exit={{ y: "-100%", opacity: 0 }}
               transition={{ duration: 0.28, ease: EXPO }}
             >
-              {FLOW_NAME[flow]}
+              {flowName}
             </motion.span>
           </AnimatePresence>
         </div>
         <span className="sr-only" aria-live="polite">
-          {FLOW_NAME[flow]}, {rate.toFixed(1)} litres a minute
+          {fill(t.hero.status, { name: flowName, rate: rate.toFixed(1).replace(".", t.decimal) })}
         </span>
       </div>
 
@@ -322,7 +325,7 @@ function Console({
               <motion.button
                 key={k.id}
                 type="button"
-                aria-label={k.label}
+                aria-label={t.flows[k.id].label}
                 aria-pressed={on}
                 onClick={() => onPick(on && k.id !== "off" ? "off" : k.id)}
                 initial={false}
@@ -349,7 +352,7 @@ function Console({
               className="narrow text-center text-[11px] font-semibold uppercase sm:text-[12px] sm:tracking-[0.04em]"
               style={{ color: flow === k.id ? "#f3efe8" : "#8e9094" }}
             >
-              {k.short}
+              {t.flows[k.id].short}
             </span>
           ))}
         </div>

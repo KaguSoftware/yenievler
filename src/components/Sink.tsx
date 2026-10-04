@@ -1,61 +1,34 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { motion } from "framer-motion";
+import { easeIn, motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import { Reveal } from "./Reveal";
 import { EXPO } from "@/lib/motion";
+import { useWorldStatus } from "@/lib/useWorldStatus";
 import { sinkUi } from "@/lib/three/sinkState";
+import { fill, useI18n } from "@/i18n/provider";
 
 type Outlet = "tap" | "falls" | "cups" | "ro";
 type Mode = "stream" | "spray" | "blade";
 /** Parts of the drawing a feature row can point at. */
 type Area = Outlet | "keys" | "floor";
 
-const OUTLETS: { id: Outlet; short: string; label: string }[] = [
-  { id: "tap", short: "Tap", label: "Pull-out tap" },
-  { id: "falls", short: "Falls", label: "Waterfalls" },
-  { id: "cups", short: "Rinse", label: "Glass rinser" },
-  { id: "ro", short: "Drink", label: "Drinking water" },
-];
+const OUTLET_IDS: Outlet[] = ["tap", "falls", "cups", "ro"];
+const MODE_IDS: Mode[] = ["stream", "spray", "blade"];
+const AREAS: Area[] = ["keys", "tap", "falls", "cups", "ro", "floor"];
 
-const MODES: { id: Mode; label: string }[] = [
-  { id: "stream", label: "Stream" },
-  { id: "spray", label: "Spray" },
-  { id: "blade", label: "Blade" },
-];
-
-const FEATURES: { area: Area; title: string; body: string }[] = [
-  {
-    area: "keys",
-    title: "Four keys",
-    body: "Tap, waterfalls, glass rinser, drinking water. Press to start, press again to stop. The display reads the temperature back.",
-  },
-  {
-    area: "tap",
-    title: "Pull-out tap",
-    body: "Stream, spray or blade. The head pulls out and reaches every corner of the bowl.",
-  },
-  {
-    area: "falls",
-    title: "Two waterfalls",
-    body: "A slot and a grille along the back. Rinse a colander under them with both hands free.",
-  },
-  {
-    area: "cups",
-    title: "Glass rinser",
-    body: "Turn a glass over onto the plate and press down. Jets wash the inside.",
-  },
-  {
-    area: "ro",
-    title: "Drinking-water tap",
-    body: "Its own quarter-turn tap for filtered water, tested to 500,000 turns.",
-  },
-  {
-    area: "floor",
-    title: "X-groove floor",
-    body: "Grooves run to the drain, so the bowl empties fast and dries clean. Rounded corners leave grime nowhere to sit.",
-  },
-];
+/** The copy for the current locale, in the shapes the components below iterate over. */
+function useCopy() {
+  const { t, lang } = useI18n();
+  return {
+    t,
+    lang,
+    OUTLETS: OUTLET_IDS.map((id) => ({ id, ...t.sink.outlets[id] })),
+    MODES: MODE_IDS.map((id) => ({ id, label: t.sink.modes[id] })),
+    FEATURES: AREAS.map((area) => ({ area, ...t.sink.features[area] })),
+  };
+}
+type Feat = ReturnType<typeof useCopy>["FEATURES"][number];
 
 /** Hex for the SVG; the swatches use the same oklch language as the basin builder. */
 const FINISHES = [
@@ -73,7 +46,6 @@ const FINISHES = [
     metal: ["#83868c", "#44464b"],
     grille: "#5d6067",
     glass: "#ffffff",
-    board: "wooden chopping board",
     // Water reads light on dark steel.
     cold: [0.9, 0.06, 230],
     hot: [0.86, 0.11, 52],
@@ -92,7 +64,6 @@ const FINISHES = [
     metal: ["#eceef0", "#999da3"],
     grille: "#e3e6e9",
     glass: "#5f646b",
-    board: "steel chopping board",
     // And darker on bright steel.
     cold: [0.58, 0.12, 238],
     hot: [0.6, 0.17, 38],
@@ -102,16 +73,6 @@ type Finish = (typeof FINISHES)[number];
 
 const T_MIN = 18;
 const T_MAX = 60;
-
-const SPECS: [string, string][] = [
-  ["Overall", "750 × 450 × 215 mm"],
-  ["Bowl", "700 × 350 mm"],
-  ["Steel", "304 grade, 1.2 mm"],
-  ["Mounting", "Top mount"],
-  ["Water pressure", "2.5 to 3 bar"],
-  ["Underside", "Sound-deadening pads"],
-  ["Guarantee", "25 years bowl, 2 years keys"],
-];
 
 /** Same key faces as the shower mixer in the hero. */
 const KEY_UP = "0 5px 0 #8d8f93, 0 8px 12px rgba(0,0,0,0.55), inset 0 1px 0 #fff";
@@ -149,6 +110,7 @@ function waterColor(f: Finish, temp: number) {
  * with rain falling through it, so the section needs no colour change of its own.
  */
 export function Sink() {
+  const { t, lang, OUTLETS, MODES, FEATURES } = useCopy();
   // Starts where the show above leaves the sink: everything running, plug in, bowl full.
   const [on, setOn] = useState<Record<Outlet, boolean>>({
     tap: true,
@@ -169,6 +131,18 @@ export function Sink() {
   useEffect(() => {
     Object.assign(sinkUi, { ...on, mode, temp, plug, finish });
   }, [on, mode, temp, plug, finish]);
+
+  // The dive: once the last rows are read, the words and the console drop away and leave the sink
+  // alone in its window, then the camera goes into the bowl and down the drain (timeline: sink-dive).
+  // Only with the 3D world on: without it the outro is collapsed and there is nothing to dive into.
+  const outro = useRef<HTMLDivElement>(null);
+  const world = useWorldStatus() === "on";
+  const reduced = useReducedMotion();
+  const { scrollYProgress: dive } = useScroll({ target: outro, offset: ["start end", "start start"] });
+  const dropY = useTransform(dive, [0.45, 0.85], [0, 140], { ease: easeIn });
+  const dropO = useTransform(dive, [0.45, 0.8], [1, 0]);
+  const dropV = useTransform(dive, (v) => (v >= 0.8 ? "hidden" : "visible"));
+  const drop = world && !reduced ? { y: dropY, opacity: dropO, visibility: dropV } : undefined;
 
   const running = OUTLETS.filter((o) => on[o.id]);
 
@@ -194,7 +168,7 @@ export function Sink() {
       aria-labelledby="sink-spec-title"
       className="bg-paper px-[var(--pad)] py-[clamp(80px,11vw,160px)] world:bg-transparent"
     >
-      <style href="nimbo-sink" precedence="default">
+      <style href="yeni-evler-yapi-sink" precedence="default">
         {WATER_CSS}
       </style>
       {/* Two columns from the top edge: words on the left, and on the right a sticky window the 3D
@@ -202,11 +176,10 @@ export function Sink() {
       <div className="grid items-start gap-x-[clamp(32px,5vw,88px)] gap-y-12 lg:grid-cols-[minmax(340px,1fr)_minmax(0,1.3fr)]">
         <Reveal className="flex flex-col gap-6 lg:col-start-1 lg:row-start-1">
           <h2 id="sink-spec-title" className="display max-w-[14ch] text-[clamp(44px,6.4vw,108px)] text-balance">
-            Your turn.
+            {t.sink.title}
           </h2>
           <p className="max-w-[34ch] text-[18px] leading-[1.4] font-medium">
-            Same keys, your hands. Press them, turn the temperature, pull the plug. The sink does what
-            yours would.
+            {t.sink.lede}
           </p>
         </Reveal>
         <div className="flex min-w-0 flex-col gap-5 lg:sticky lg:top-8 lg:col-start-2 lg:row-span-2 lg:row-start-1">
@@ -219,51 +192,53 @@ export function Sink() {
               <Drawing f={f} on={on} mode={mode} temp={temp} plug={plug} full={full} focus={focus} />
             </div>
           </Reveal>
-          <Reveal delay={120}>
-            <Console
-              on={on}
-              toggle={toggle}
-              temp={temp}
-              setTemp={setTemp}
-              plug={plug}
-              flipPlug={flipPlug}
-              setFocus={setFocus}
-            />
-            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3">
-              <span className="text-[14px] font-semibold text-ink/78">Tap head</span>
-              <div role="radiogroup" aria-label="Tap head" className="flex flex-wrap gap-2">
-                {MODES.map((m) => {
-                  const sel = mode === m.id;
-                  return (
-                    <button
-                      key={m.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={sel}
-                      onClick={() => pickMode(m.id)}
-                      className="rounded-full border px-4 py-2 text-[14px] font-semibold transition-colors duration-200"
-                      style={{
-                        borderColor: sel ? "var(--color-ink)" : "oklch(0.19 0.015 45 / 0.25)",
-                        background: sel ? "var(--color-ink)" : "transparent",
-                        color: sel ? "var(--color-paper)" : "var(--color-ink)",
-                      }}
-                    >
-                      {m.label}
-                    </button>
-                  );
-                })}
+          <motion.div style={drop}>
+            <Reveal delay={120}>
+              <Console
+                on={on}
+                toggle={toggle}
+                temp={temp}
+                setTemp={setTemp}
+                plug={plug}
+                flipPlug={flipPlug}
+                setFocus={setFocus}
+              />
+              <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3">
+                <span className="text-[14px] font-semibold text-ink/78">{t.sink.tapHead}</span>
+                <div role="radiogroup" aria-label={t.sink.tapHead} className="flex flex-wrap gap-2">
+                  {MODES.map((m) => {
+                    const sel = mode === m.id;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={sel}
+                        onClick={() => pickMode(m.id)}
+                        className="rounded-full border px-4 py-2 text-[14px] font-semibold transition-colors duration-200"
+                        style={{
+                          borderColor: sel ? "var(--color-ink)" : "oklch(0.19 0.015 45 / 0.25)",
+                          background: sel ? "var(--color-ink)" : "transparent",
+                          color: sel ? "var(--color-paper)" : "var(--color-ink)",
+                        }}
+                      >
+                        {m.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-            <span className="sr-only" aria-live="polite">
-              {running.length
-                ? `Running: ${running.map((o) => o.label.toLowerCase()).join(", ")}.`
-                : "Nothing running."}
-              {full ? " The bowl is full." : ""}
-            </span>
-          </Reveal>
+              <span className="sr-only" aria-live="polite">
+                {running.length
+                  ? fill(t.sink.runningList, { list: running.map((o) => o.label.toLocaleLowerCase(lang)).join(", ") })
+                  : t.sink.nothingRunning}
+                {full ? t.sink.bowlFull : ""}
+              </span>
+            </Reveal>
+          </motion.div>
         </div>
 
-        <div className="flex flex-col gap-10 lg:col-start-1 lg:row-start-2">
+        <motion.div style={drop} className="flex flex-col gap-10 lg:col-start-1 lg:row-start-2">
           <ul className="flex flex-col" onMouseLeave={() => setFocus(null)}>
             {FEATURES.map((ft, i) => (
               <Feature key={ft.title} n={i + 1} ft={ft} hot={focus === ft.area} onHover={() => setFocus(ft.area)} />
@@ -272,17 +247,17 @@ export function Sink() {
 
           <div className="flex flex-col gap-3.5">
             <div className="flex items-baseline justify-between text-[15px]">
-              <span className="font-semibold">Finish</span>
-              <span className="text-ink/78">{f.name}</span>
+              <span className="font-semibold">{t.sink.finish}</span>
+              <span className="text-ink/78">{t.sink.finishes[finish].name}</span>
             </div>
-            <div className="grid max-w-[400px] grid-cols-4 gap-2.5" role="radiogroup" aria-label="Finish">
+            <div className="grid max-w-[400px] grid-cols-4 gap-2.5" role="radiogroup" aria-label={t.sink.finish}>
               {FINISHES.map((s, i) => (
                 <button
                   key={s.name}
                   type="button"
                   role="radio"
                   aria-checked={i === finish}
-                  aria-label={s.name}
+                  aria-label={t.sink.finishes[i].name}
                   onClick={() => setFinish(i)}
                   className="aspect-square rounded-full border-2 bg-transparent p-1 transition-colors duration-200"
                   style={{ borderColor: i === finish ? "var(--color-ink)" : "oklch(0.19 0.015 45 / 0.14)" }}
@@ -294,7 +269,7 @@ export function Sink() {
           </div>
 
           <dl className="flex flex-col border-t border-ink/15 text-[15px]">
-            {SPECS.map(([k, v]) => (
+            {t.sink.specs.map(([k, v]) => (
               <div key={k} className="flex justify-between gap-4 border-b border-ink/15 py-2.5">
                 <dt className="text-ink/78">{k}</dt>
                 <dd className="num text-right font-semibold">{v}</dd>
@@ -303,23 +278,30 @@ export function Sink() {
           </dl>
 
           <p className="max-w-[46ch] text-[15px] leading-[1.5] text-ink/75">
-            <span className="font-semibold text-ink">In the box:</span> pull-out tap, drinking-water
-            tap, glass rinser, soap dispenser, {f.board}, strainer basket, adjustable vegetable basket,
-            waste coupling and pipes.
+            <span className="font-semibold text-ink">{t.sink.inBoxLead}</span>
+            {fill(t.sink.inBox, { board: t.sink.finishes[finish].board })}
           </p>
 
           <div className="flex flex-wrap items-center justify-between gap-5">
             <p className="max-w-[24ch] text-[15px] leading-[1.4] font-medium">
-              Running in every showroom. Bring a dirty pan.
+              {t.sink.showroomNote}
             </p>
             <a
               href="#showrooms"
               className="rounded-full bg-signal px-7 py-4 text-[16px] font-bold text-ink transition-transform duration-300 ease-[var(--ease-out-quart)] hover:-translate-y-0.5"
             >
-              Request a quote
+              {t.common.requestQuote}
             </a>
           </div>
-        </div>
+        </motion.div>
+
+        {/* Empty scroll that keeps the sticky sink window on screen after the words have gone. */}
+        <div
+          ref={outro}
+          data-station="sink-dive"
+          aria-hidden
+          className="hidden h-[130vh] world:block motion-reduce:hidden lg:col-start-1 lg:row-start-3"
+        />
       </div>
     </section>
   );
@@ -332,7 +314,7 @@ function Feature({
   onHover,
 }: {
   n: number;
-  ft: (typeof FEATURES)[number];
+  ft: Feat;
   hot: boolean;
   onHover: () => void;
 }) {
@@ -380,12 +362,13 @@ function Console({
   flipPlug: () => void;
   setFocus: (a: Area | null) => void;
 }) {
+  const { t, OUTLETS } = useCopy();
   const hot = on.tap || on.falls;
   const count = OUTLETS.filter((o) => on[o.id]).length;
   return (
     <div
       role="group"
-      aria-label="Sink keys"
+      aria-label={t.sink.keysLabel}
       className="flex flex-wrap items-center gap-3 rounded-[14px] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-7px_0_rgba(0,0,0,0.38),0_22px_44px_rgba(40,30,20,0.28),0_2px_0_#0b0c0e] [background:linear-gradient(180deg,oklch(0.42_0.01_255)_0%,oklch(0.31_0.01_255)_34%,oklch(0.23_0.01_255)_100%)] sm:gap-4 sm:p-4"
     >
       <div className="flex h-[76px] min-w-[104px] shrink-0 flex-col justify-center gap-1.5 rounded-[6px] bg-[oklch(0.15_0.008_255)] px-4 shadow-[inset_0_2px_7px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.09)] max-[420px]:w-full">
@@ -398,7 +381,7 @@ function Console({
           <span className="text-[13px] font-medium tracking-wider">°C</span>
         </div>
         <div aria-hidden className="text-[11px] leading-[12px] font-semibold tracking-[0.08em] text-signal/80 uppercase">
-          {count ? `${count} running` : "Standby"}
+          {count ? fill(t.sink.running, { n: count }) : t.sink.standby}
         </div>
       </div>
 
@@ -456,10 +439,10 @@ function Console({
 
       <div className="flex shrink-0 gap-3 max-[420px]:w-full max-[420px]:justify-center">
         <TempKnob value={temp} onChange={setTemp} />
-        <Knob label="Drain" angle={plug ? 90 : 0}>
+        <Knob label={t.sink.drain} angle={plug ? 90 : 0}>
           <button
             type="button"
-            aria-label="Drain plug"
+            aria-label={t.sink.drainPlug}
             aria-pressed={plug}
             onClick={flipPlug}
             onMouseEnter={() => setFocus("floor")}
@@ -497,6 +480,7 @@ function Knob({ label, angle, children }: { label: string; angle: number; childr
 
 /** Drag up or right to heat, arrow keys for single degrees. */
 function TempKnob({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const { t } = useI18n();
   const drag = useRef<{ x: number; y: number; v: number } | null>(null);
   const set = (v: number) => onChange(Math.min(T_MAX, Math.max(T_MIN, Math.round(v))));
   const onKey = (e: KeyboardEvent) => {
@@ -516,11 +500,11 @@ function TempKnob({ value, onChange }: { value: number; onChange: (v: number) =>
   };
   const angle = -135 + ((value - T_MIN) / (T_MAX - T_MIN)) * 270;
   return (
-    <Knob label="Temp" angle={angle}>
+    <Knob label={t.sink.temp} angle={angle}>
       <div
         role="slider"
         tabIndex={0}
-        aria-label="Water temperature"
+        aria-label={t.sink.waterTemp}
         aria-valuemin={T_MIN}
         aria-valuemax={T_MAX}
         aria-valuenow={value}
@@ -581,6 +565,7 @@ function Drawing({
   full: boolean;
   focus: Area | null;
 }) {
+  const { t, lang, OUTLETS } = useCopy();
   const w = waterColor(f, temp);
   const fade = (a: Area) => ({
     opacity: focus && focus !== a ? 0.22 : 1,
@@ -591,10 +576,11 @@ function Drawing({
     animate: { opacity: v ? 1 : 0 },
     transition: { duration: 0.45, ease: EXPO },
   });
-  const running = OUTLETS.filter((o) => on[o.id]).map((o) => o.label.toLowerCase());
-  const label = `Piano sink in ${f.name.toLowerCase()}. ${
-    running.length ? `Running: ${running.join(", ")}.` : "Nothing running."
-  }${full ? " The bowl is full." : ""}`;
+  const running = OUTLETS.filter((o) => on[o.id]).map((o) => o.label.toLocaleLowerCase(lang));
+  const finishName = t.sink.finishes[FINISHES.indexOf(f)].name.toLocaleLowerCase(lang);
+  const label = `${fill(t.sink.drawing, { finish: finishName })} ${
+    running.length ? fill(t.sink.runningList, { list: running.join(", ") }) : t.sink.nothingRunning
+  }${full ? t.sink.bowlFull : ""}`;
   const ink = (o = 1) => ({ stroke: w, strokeOpacity: o });
   // Temperature knob mark on the knob's top face (an ellipse seen from above).
   const ta = ((-135 + ((temp - T_MIN) / (T_MAX - T_MIN)) * 270) * Math.PI) / 180;

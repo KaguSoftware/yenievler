@@ -23,7 +23,7 @@ export default function Home() {
       <Range />
       <SinkShow />
       <Sink />
-      <Spacer id="drain" className="h-[220vh]" />
+      <Spacer id="drain" className="h-[150vh]" />
       <Configurator />
       <Spacer id="spill" className="h-[170vh]" />
       <Showrooms />

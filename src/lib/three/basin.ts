@@ -5,6 +5,7 @@ import { BASIN_Z, C } from "./timeline";
 import { ui } from "./state";
 import type { BuildCtx, Frame, Stage } from "./stage";
 import type { Water } from "./water";
+import type { Jets } from "./jets";
 
 /** Azimuth the timeline's basin pose was authored at. Dragging orbits around it. */
 const AZ0 = 0.55;
@@ -19,7 +20,7 @@ export interface BasinStage extends Stage {
 }
 
 /** Wall-hung stone basin with a wall spout, as in the old builder. Drag to orbit. */
-export function buildBasin(ctx: BuildCtx, water: Water): BasinStage {
+export function buildBasin(ctx: BuildCtx, water: Water, jets: Jets): BasinStage {
   const group = new THREE.Group();
   group.position.z = BASIN_Z;
   const env = ctx.envBasin;
@@ -105,13 +106,20 @@ export function buildBasin(ctx: BuildCtx, water: Water): BasinStage {
   mk(new THREE.CylinderGeometry(0.03, 0.03, 0.06, 32), 0.42, 0.68, -1.0, Math.PI / 2);
   const lever = mk(new THREE.CylinderGeometry(0.011, 0.011, 0.2, 24), 0.42, 0.68, -0.9, Math.PI / 2 - 0.25);
 
-  const streamMat = new THREE.MeshPhysicalMaterial({
-    color: 0xffffff, emissive: 0x7f98a6, emissiveIntensity: 0.25, roughness: 0, metalness: 0,
-    transparent: true, opacity: 0, clearcoat: 1, depthWrite: false,
+  // The stream is the shower's kind of water: streaking drops from the spout, splashes and rings on the pool.
+  const jet = jets.add({
+    n: 520,
+    x0: 0,
+    y: 0,
+    z0: 0,
+    spread: 0.0125,
+    vy: -0.9,
+    vJitter: 0.03,
+    landY: 0,
+    tail: 0.04,
+    ringR: 0.11,
+    splash: 0.8,
   });
-  const stream = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.014, 0.53, 24, 1, true), streamMat);
-  stream.position.set(0, 0.665 - 0.53 / 2 - 0.02, -0.6);
-  group.add(stream);
   const poolMat = new THREE.MeshPhysicalMaterial({ color: 0xbfd6e0, roughness: 0.02, transparent: true, opacity: 0.25, clearcoat: 1, depthWrite: false });
   const pool = new THREE.Mesh(new THREE.CircleGeometry(0.39, 64), poolMat);
   pool.rotation.x = -Math.PI / 2;
@@ -181,6 +189,10 @@ export function buildBasin(ctx: BuildCtx, water: Water): BasinStage {
     prewarm() {
       dl.castShadow = true;
     },
+    always(f: Frame) {
+      // Out of range the spout is closed, so no stream is left running where the basin was.
+      if (f.s[C.basin] <= 0.01) jet.on = 0;
+    },
     update(f: Frame) {
       const s = f.s;
       apply();
@@ -201,13 +213,16 @@ export function buildBasin(ctx: BuildCtx, water: Water): BasinStage {
       const poolR = 0.39 + over * 0.075;
       pool.scale.set(poolR / 0.39, poolR / 0.39, 1);
 
-      // One stream. The drop system draws it; the glass tube only adds body once the curtain has narrowed.
+      // One stream. The curtain narrows into it: as it does, the shower's own drops hand over to the jet.
       const narrow = 1 - smooth(0.02, 0.6, s[C.emitR]);
       const flowing = ui.water ? 1 : 0;
-      streamMat.opacity = 0.5 * narrow * flowing * (1 - smooth(0.2, 0.7, over));
-      stream.visible = streamMat.opacity > 0.01;
+      f.s[C.water] *= 1 - smooth(0.3, 0.9, narrow);
       pool.visible = ui.water || over > 0.05;
-      if (stream.visible && !f.reduced) stream.scale.x = stream.scale.z = 1 + Math.sin(time * 40) * 0.08;
+      jet.on = narrow * flowing * (1 - smooth(0.2, 0.7, over)) * (w > 0.3 ? 1 : 0);
+      jet.x0 = jet.x1 = group.position.x;
+      jet.z0 = jet.z1 = group.position.z - 0.6;
+      jet.y = group.position.y + 0.665;
+      jet.landY = group.position.y + poolY;
 
       water.pool.on = (ui.water || over > 0.05) && w > 0.3;
       water.pool.x = 0;
@@ -241,10 +256,10 @@ export function buildBasin(ctx: BuildCtx, water: Water): BasinStage {
       cv.removeEventListener("pointerup", up);
       cv.removeEventListener("pointercancel", up);
       geos.forEach((g) => g.dispose());
-      [wall, catcher, slab, basin, stream, pool].forEach((m) => {
+      [wall, catcher, slab, basin, pool].forEach((m) => {
         m.geometry.dispose();
       });
-      [wallMat, slabMat, stoneMat, metal, streamMat, poolMat, catcher.material as THREE.Material].forEach((m) => m.dispose());
+      [wallMat, slabMat, stoneMat, metal, poolMat, catcher.material as THREE.Material].forEach((m) => m.dispose());
       [wallAlpha, oak, ...Object.values(texCache)].forEach((t) => t.dispose());
       dl.dispose();
       fill.dispose();

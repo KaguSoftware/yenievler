@@ -16,6 +16,7 @@ import {
   type SinkOutlet,
 } from "./sinkState";
 import type { BuildCtx, Frame, Stage } from "./stage";
+import type { Jets } from "./jets";
 
 /**
  * Timeline channel indices the stage reads. Passed in by world.ts so this file compiles on its own:
@@ -52,6 +53,8 @@ const [DX, DZ] = DRAIN_LOCAL;
 /** Water can rise this far above the floor with the plug in. */
 const LEVEL_MAX = 0.06;
 
+/** The glass ribbons are only the body of the water now; the drops (jets.ts) carry the look. */
+const RIBBON = 0.3;
 const OUTLETS: SinkOutlet[] = ["tap", "falls", "cups", "ro"];
 const KEY_X = (i: number) => -0.026 + i * 0.03;
 const KEY_Z = -0.152;
@@ -284,7 +287,7 @@ function flowMat(o: { cols: number; rows: number; speed: number; alpha: number; 
         uTime: { value: 0 },
         uHead: { value: 0 },
         uTail: { value: 0 },
-        uAlpha: { value: o.alpha },
+        uAlpha: { value: o.alpha * RIBBON },
         uCols: { value: o.cols },
         uRows: { value: o.rows },
         uSpeed: { value: o.speed },
@@ -423,14 +426,14 @@ function rippleTex(): THREE.CanvasTexture {
  * The scroll presses the keys in order (seq); in the console section the DOM drives them (live);
  * at the end the plug lifts and the bowl drains while the camera follows the water down.
  */
-export function buildSink(ctx: BuildCtx, ch: SinkChannels): SinkStage {
+export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkStage {
   const group = new THREE.Group();
   group.position.set(SINK_X, SINK_Y, SINK_Z);
   const model = new THREE.Group();
   model.scale.setScalar(SINK_SCALE);
   group.add(model);
-  // Read-only window into the model for tests in development, like window.__nimbo.
-  if (process.env.NODE_ENV !== "production") (window as unknown as { __nimboSink: THREE.Group }).__nimboSink = model;
+  // Read-only window into the model for tests in development, like window.__yeniEvlerYapi.
+  if (process.env.NODE_ENV !== "production") (window as unknown as { __yeniEvlerYapiSink: THREE.Group }).__yeniEvlerYapiSink = model;
   const env = ctx.envBasin;
 
   const geos: THREE.BufferGeometry[] = [];
@@ -816,6 +819,28 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels): SinkStage {
     sl[j] = 1;
   };
 
+  // The shower's kind of water rides on the ribbons: streaking drops, crowns and rings. World coordinates.
+  const W = SINK_SCALE;
+  const jTap = drops.add({ n: 560, x0: 0, y: 0, z0: 0, spread: 0.012, vy: -0.9, tail: 0.04, ringR: 0.1, splash: 0.9, landY: 0 });
+  const jFallA = drops.add({ n: 520, x0: 0, y: 0, z0: 0, spread: 0.004, vJitter: 0.02, tail: 0.035, ringR: 0.05, splash: 1.1, landY: 0 });
+  const jFallB = drops.add({ n: 380, x0: 0, y: 0, z0: 0, spread: 0.004, vJitter: 0.02, tail: 0.035, ringR: 0.05, splash: 1.1, landY: 0 });
+  const jRo = drops.add({ n: 170, x0: 0, y: 0, z0: 0, spread: 0.006, vy: -0.5, tail: 0.04, ringR: 0.06, splash: 0.6, landY: 0 });
+  const jCup = drops.add({ n: 320, x0: 0, y: 0, z0: 0, spread: 0.012, vy: 1.5, vJitter: 0.5, tail: 0.03, ringR: 0, splash: 0.5, landY: 0 });
+  const allJets = [jTap, jFallA, jFallB, jRo, jCup];
+  const GRAV = 9.8;
+  /** Aim a waterfall jet so its drops land where the ribbon does. */
+  const aimSheet = (j: (typeof allJets)[number], s: typeof SLOT, landZ: number, gx: number, gy: number, gz: number, landY: number) => {
+    j.x0 = gx + W * s.x0;
+    j.x1 = gx + W * s.x1;
+    j.y = gy + W * s.y;
+    j.z0 = j.z1 = gz + W * s.z;
+    j.vy = W * s.vy * 0.7;
+    j.landY = landY;
+    const H = Math.max(0.02, j.y - landY);
+    const T = (j.vy + Math.sqrt(j.vy * j.vy + 2 * GRAV * H)) / GRAV;
+    j.vz = (W * (landZ - s.z)) / T;
+  };
+
   /* -------------------------------------------------------------- state */
   // Per outlet: the pouring front and the falling tail, 0..1.2 (shader units), and the key travel.
   const headP = new Float64Array(4);
@@ -919,7 +944,10 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels): SinkStage {
       key.castShadow = true;
     },
     always(f: Frame) {
-      if (f.s[ch.on] < 0.01) hideLabels();
+      if (f.s[ch.on] < 0.01) {
+        hideLabels();
+        for (const j of allJets) j.on = 0;
+      }
     },
     update(f: Frame) {
       const s = f.s;
@@ -1028,7 +1056,7 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels): SinkStage {
         tapMeshes[k].scale.y = tapLen;
         tapMats[k].uniforms.uHead.value = headP[0];
         tapMats[k].uniforms.uTail.value = tailP[0];
-        tapMats[k].uniforms.uAlpha.value = base[k] * modeW[k];
+        tapMats[k].uniforms.uAlpha.value = base[k] * modeW[k] * RIBBON;
         tapMats[k].uniforms.uRows.value = (k === 1 ? 30 : 14) * (tapLen / 0.45);
         tapMeshes[k].visible = headP[0] > 0 && modeW[k] > 0.01;
       }
@@ -1079,7 +1107,43 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels): SinkStage {
         }
         spGeo.attributes.position.needsUpdate = true;
       }
-      splashes.visible = !reduced;
+      splashes.visible = false;
+
+      // Drive the jets from the same pour timings as the ribbons.
+      {
+        const gx = group.position.x;
+        const gy = group.position.y;
+        const gz = group.position.z;
+        const wy = gy + W * waterY;
+        const wet = surface.visible;
+        const pour = (i: number) => (reduced ? (wantOn[i] ? 1 : 0) : Math.max(0, Math.min(1, headP[i])) * (1 - Math.max(0, Math.min(1, tailP[i] / 1.2))));
+        const hw = 0.12 * modeW[2];
+        jTap.on = pour(0);
+        jTap.x0 = gx + W * TAP_OUT.x - hw;
+        jTap.x1 = gx + W * TAP_OUT.x + hw;
+        jTap.z0 = jTap.z1 = gz + W * TAP_OUT.z;
+        jTap.y = gy + W * TAP_OUT.y;
+        jTap.spread = 0.012 + 0.04 * modeW[1];
+        jTap.vJitter = 0.04 + 0.5 * modeW[1] + 0.12 * modeW[2];
+        jTap.vz = 0.25 * modeW[2];
+        jTap.landY = wy;
+        jTap.ringR = wet ? 0.1 : 0;
+        jFallA.on = jFallB.on = pour(1);
+        aimSheet(jFallA, SLOT, sheetA.landZ, gx, gy, gz, wy);
+        aimSheet(jFallB, GRILLE, sheetB.landZ, gx, gy, gz, wy);
+        jFallA.ringR = jFallB.ringR = wet ? 0.05 : 0;
+        jRo.on = pour(3);
+        jRo.x0 = jRo.x1 = gx + W * RO_OUT.x;
+        jRo.z0 = jRo.z1 = gz + W * RO_OUT.z;
+        jRo.y = gy + W * RO_OUT.y;
+        jRo.landY = wy;
+        jRo.ringR = wet ? 0.06 : 0;
+        jCup.on = pour(2);
+        jCup.x0 = jCup.x1 = gx + W * RINSER.x;
+        jCup.z0 = jCup.z1 = gz + W * RINSER.z;
+        jCup.y = gy + W * (DECK_H + 0.014);
+        jCup.landY = gy + W * DECK_H;
+      }
 
       model.updateMatrixWorld(true);
       placeLabels(f, seq);

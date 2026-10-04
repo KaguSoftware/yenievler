@@ -1,21 +1,16 @@
 "use client";
 
 import { Reveal } from "./Reveal";
-
-const PARTS = [
-  { n: "01", title: "Tap", body: "Pull-out head, three sprays." },
-  { n: "02", title: "Waterfalls", body: "A slot and a grille, hands free." },
-  { n: "03", title: "Glass rinser", body: "Turn a glass over, jets wash it." },
-  { n: "04", title: "Drinking water", body: "Filtered, on its own tap." },
-];
-
-const PIPS = ["Tap", "Falls", "Rinse", "Drink"];
+import { useI18n } from "@/i18n/provider";
 
 /**
  * Captions for the sink show. The sink itself is in the shared world: sink.ts presses the four keys
  * as this section scrolls, places these captions on the outlets and lights the pips at the bottom.
  */
 export function SinkShow() {
+  const { t } = useI18n();
+  const PARTS = t.sinkShow.parts.map((p, i) => ({ ...p, n: String(i + 1).padStart(2, "0") }));
+  const PIPS = t.sinkShow.pips;
   return (
     <section
       id="sink"
@@ -26,17 +21,17 @@ export function SinkShow() {
       <div className="noworld:static noworld:h-auto noworld:min-h-0 noworld:overflow-visible noworld:px-[var(--pad)] noworld:pt-[clamp(80px,11vw,160px)] sticky top-0 h-[100svh] min-h-[620px] overflow-hidden">
         <Reveal className="pointer-events-none absolute top-[clamp(28px,6vh,64px)] left-[var(--pad)] max-w-[560px] noworld:static">
           <h2 id="sink-title" className="display text-[clamp(40px,5.4vw,92px)]">
-            Washing up, <span className="text-signal-deep">played.</span>
+            {t.sinkShow.titleA} <span className="text-signal-deep">{t.sinkShow.titleB}</span>
           </h2>
           <p className="mt-4 max-w-[30ch] text-[17px] leading-[1.4] font-medium text-ink/78">
-            Piano, our kitchen sink. Four keys on the deck. Keep scrolling and it plays them.
+            {t.sinkShow.lede}
           </p>
         </Reveal>
 
         <ul className="sr-only">
           {PARTS.map((p) => (
             <li key={p.n}>
-              {p.title}: {p.body}
+              {p.title}. {p.body}
             </li>
           ))}
         </ul>
@@ -78,11 +73,11 @@ export function SinkShow() {
               </div>
             ))}
           </div>
-          <span className="max-sm:hidden">Off</span>
+          <span className="max-sm:hidden">{t.sinkShow.off}</span>
           <div className="h-px flex-1 overflow-hidden bg-ink/15">
             <div data-sink-bar="" className="h-full origin-left bg-signal" style={{ transform: "scaleX(0)" }} />
           </div>
-          <span className="max-sm:hidden">All four running</span>
+          <span className="max-sm:hidden">{t.sinkShow.allOn}</span>
         </div>
       </div>
     </section>

@@ -1,35 +1,30 @@
 "use client";
 
 import { Reveal } from "./Reveal";
-
-const PARTS = [
-  { n: "01", title: "Body", body: "A 4.2 kg billet of solid brass, polished in four stages." },
-  { n: "02", title: "Air chamber", body: "Twenty-four vanes pull air into the flow. Fuller drops, half the water." },
-  { n: "03", title: "Diffuser", body: "96 channels even out the pressure across the whole face." },
-  { n: "04", title: "Nozzles", body: "Silicone. Rub them with a thumb and the limescale falls off." },
-  { n: "05", title: "Face ring", body: "Hand-polished, sealed to the body with a single gasket." },
-];
+import { useI18n } from "@/i18n/provider";
 
 /**
  * Captions for the dive. The head itself is in the shared world: world.ts pulls it apart as this
  * section scrolls, places the labels on the parts, and then drops the camera through them.
  */
 export function Exploded() {
+  const { t } = useI18n();
+  const PARTS = t.exploded.parts.map((p, i) => ({ ...p, n: String(i + 1).padStart(2, "0") }));
   return (
     <section
       id="inside"
       data-station="inside"
-      aria-label="Inside the R-360 rain head"
+      aria-label={t.exploded.aria}
       className="relative bg-gun text-paper world:h-[440vh] world:bg-transparent motion-reduce:world:h-[100svh]"
     >
       <div className="noworld:static noworld:h-auto noworld:min-h-0 noworld:overflow-visible noworld:px-[var(--pad)] noworld:py-[clamp(64px,9vw,120px)] sticky top-0 h-[100svh] min-h-[620px] overflow-hidden">
         <div data-world-caption="" className="noworld:static noworld:opacity-100">
           <Reveal className="pointer-events-none absolute top-[clamp(28px,6vh,64px)] left-[var(--pad)] max-w-[600px] noworld:static">
             <h2 className="display text-[clamp(40px,5.4vw,92px)]">
-              Take it <span className="text-signal">apart.</span>
+              {t.exploded.titleA} <span className="text-signal">{t.exploded.titleB}</span>
             </h2>
             <p className="mt-4 max-w-[26ch] text-[17px] leading-[1.4] text-paper/75">
-              Scroll. The R-360 comes apart into five parts, and none of them is plastic.
+              {t.exploded.lede}
             </p>
           </Reveal>
         </div>
@@ -65,7 +60,7 @@ export function Exploded() {
           data-world-caption=""
           className="noworld:hidden absolute right-[var(--pad)] bottom-8 left-[var(--pad)] flex items-center gap-4 text-[12px] font-semibold tracking-[0.06em] text-paper/60 uppercase"
         >
-          <span>Assembled</span>
+          <span>{t.exploded.assembled}</span>
           <div className="h-px flex-1 overflow-hidden bg-paper/15">
             <div
               data-world-bar=""
@@ -73,7 +68,7 @@ export function Exploded() {
               style={{ transform: "scaleX(0)" }}
             />
           </div>
-          <span>Exploded</span>
+          <span>{t.exploded.exploded}</span>
         </div>
       </div>
     </section>

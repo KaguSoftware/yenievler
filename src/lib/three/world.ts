@@ -3,6 +3,7 @@ import { damp, domRef, makeEnv, reducedMotion } from "./common";
 import { buildBasin } from "./basin";
 import { buildExploded } from "./exploded";
 import { buildFx } from "./fx";
+import { buildJets } from "./jets";
 import { buildHero } from "./hero";
 import { buildSink } from "./sink";
 import { buildWater } from "./water";
@@ -47,7 +48,7 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
   probe.follow = options.follow ?? 7;
   const reduced = reducedMotion();
   // Read-only window into the loop for tests and the console.
-  (window as unknown as { __nimbo: typeof probe }).__nimbo = probe;
+  (window as unknown as { __yeniEvlerYapi: typeof probe }).__yeniEvlerYapi = probe;
   let renderer: THREE.WebGLRenderer;
   try {
     renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
@@ -98,10 +99,11 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
   const water = buildWater(options.density ?? 1);
   const exploded = buildExploded(ctx);
   const hero = buildHero(ctx, water);
-  const basin = buildBasin(ctx, water);
-  const sink = buildSink(ctx, { on: C.sinkOn, seq: C.sinkSeq, drain: C.sinkDrain, live: C.sinkLive });
+  const jets = buildJets();
+  const basin = buildBasin(ctx, water, jets);
+  const sink = buildSink(ctx, { on: C.sinkOn, seq: C.sinkSeq, drain: C.sinkDrain, live: C.sinkLive }, jets);
   const fx = buildFx();
-  const stages: Stage[] = [water, exploded, hero, basin, sink, fx];
+  const stages: Stage[] = [water, exploded, hero, basin, sink, jets, fx];
   for (const st of stages) scene.add(st.group);
 
   /* ---------------------------------------------------------------- timeline */
@@ -312,11 +314,13 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
     fx.group.visible = S[C.fx] > 0.01 && !reduced;
     exploded.always?.(frame);
     sink.always?.(frame);
+    basin.always?.(frame);
     if (exploded.group.visible) exploded.update(frame);
     if (hero.group.visible) hero.update(frame);
     else water.hand.on = false;
     if (basin.group.visible) basin.update(frame);
     if (sink.group.visible) sink.update(frame);
+    jets.update(frame);
     water.update(frame);
     if (fx.group.visible) fx.update(frame);
     ptr.moved = false;

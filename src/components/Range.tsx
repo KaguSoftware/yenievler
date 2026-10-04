@@ -10,89 +10,48 @@ import {
 } from "framer-motion";
 import { Reveal } from "./Reveal";
 import { EXPO, RISE, STAGGER } from "@/lib/motion";
+import { useI18n } from "@/i18n/provider";
 
 const U = (id: string) =>
   `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=1000&q=75`;
 
-const COLLECTIONS = [
-  {
-    name: "Rain",
-    desc: "Heads, hand showers and the seven-key mixer that runs them.",
-    items: [
-      {
-        name: "R-360 Rain Head",
-        mat: "Brass",
-        img: "1576678433413-202829a1ab98",
-      },
-      {
-        name: "R-220 Wall Rain",
-        mat: "Brass",
-        img: "1652662700928-5a4685e87d64",
-      },
-      {
-        name: "Halo Hand Shower",
-        mat: "Brass",
-        img: "1643081262278-807976f7f2f7",
-      },
-      { name: "P7 Piano Mixer", mat: "Brass", img: "1561361398-d1f7b6cfee79" },
-    ],
-  },
-  {
-    name: "Basin",
-    desc: "Turned from one block of stone, or cast in fine fireclay.",
-    items: [
-      { name: "Monolith", mat: "Marble", img: "1595514535116-d0401260e7cf" },
-      { name: "Bowl 48", mat: "Fireclay", img: "1644916925497-109cbd92087d" },
-      {
-        name: "Trough 120",
-        mat: "Limestone",
-        img: "1600488999585-e4364713b90a",
-      },
-      { name: "Cove", mat: "Fireclay", img: "1576698483491-8c43f0862543" },
-    ],
-  },
-  {
-    name: "Spout",
-    desc: "Taps and mixers machined from solid brass, in four finishes.",
-    items: [
-      {
-        name: "Line Wall Spout",
-        mat: "Brass",
-        img: "1619365566184-272a34acfeb9",
-      },
-      { name: "Arc Mixer", mat: "Brass", img: "1542855368-ca6ea825bca2" },
-      { name: "Stem", mat: "Brass", img: "1495647688236-ed6ef40cb28b" },
-      {
-        name: "Bridge 3-hole",
-        mat: "Brass",
-        img: "1637939157373-2198d933afdf",
-      },
-    ],
-  },
-  {
-    name: "Soak",
-    desc: "Freestanding baths in stone resin and enamelled cast iron.",
-    items: [
-      {
-        name: "Ellipse 170",
-        mat: "Stone resin",
-        img: "1620626011761-996317b8d101",
-      },
-      { name: "Cistern", mat: "Cast iron", img: "1586798271654-0471bb1b0517" },
-      {
-        name: "Ofuro 110",
-        mat: "Stone resin",
-        img: "1733426107854-ee00a25d72a7",
-      },
-      { name: "Basin Bath", mat: "Marble", img: "1631889993959-41b4e9c6e3c5" },
-    ],
-  },
+/** Photos only; names, materials and descriptions come from the dictionary, in the same order. */
+const IMGS = [
+  [
+    "1576678433413-202829a1ab98",
+    "1652662700928-5a4685e87d64",
+    "1643081262278-807976f7f2f7",
+    "1561361398-d1f7b6cfee79",
+  ],
+  [
+    "1595514535116-d0401260e7cf",
+    "1644916925497-109cbd92087d",
+    "1600488999585-e4364713b90a",
+    "1576698483491-8c43f0862543",
+  ],
+  [
+    "1619365566184-272a34acfeb9",
+    "1542855368-ca6ea825bca2",
+    "1495647688236-ed6ef40cb28b",
+    "1637939157373-2198d933afdf",
+  ],
+  [
+    "1620626011761-996317b8d101",
+    "1586798271654-0471bb1b0517",
+    "1733426107854-ee00a25d72a7",
+    "1631889993959-41b4e9c6e3c5",
+  ],
 ];
 
 const ITEMS = STAGGER(0.06);
 const ITEM = RISE(14, 0.7);
 
 export function Range() {
+  const { t, lang } = useI18n();
+  const COLLECTIONS = t.range.collections.map((x, ci) => ({
+    ...x,
+    items: x.items.map((it, ii) => ({ ...it, img: IMGS[ci][ii] })),
+  }));
   const [c, setC] = useState(0);
   const [i, setI] = useState(0);
   const col = COLLECTIONS[c];
@@ -112,7 +71,7 @@ export function Range() {
     >
       <Reveal>
         <h2 className="display max-w-[20ch] text-[clamp(44px,6.4vw,108px)] text-balance">
-          Four ways to get wet.
+          {t.range.title}
         </h2>
       </Reveal>
 
@@ -120,7 +79,7 @@ export function Range() {
         <div className="flex flex-col">
           <div
             role="tablist"
-            aria-label="Collections"
+            aria-label={t.range.tabsLabel}
             className="flex flex-col"
           >
             {COLLECTIONS.map((x, idx) => (
@@ -177,7 +136,7 @@ export function Range() {
                     >
                       <Image
                         src={U(it.img)}
-                        alt={`${it.name}, ${it.mat.toLowerCase()}`}
+                        alt={`${it.name}, ${it.mat.toLocaleLowerCase(lang)}`}
                         fill
                         sizes="(min-width: 1024px) 45vw, 100vw"
                         priority={c === 0 && idx === 0}

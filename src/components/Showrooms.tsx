@@ -4,21 +4,15 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Reveal } from "./Reveal";
 import { EXPO } from "@/lib/motion";
-
-const ROOMS = [
-  { city: "Istanbul", where: "Teşvikiye", hours: "Tue to Sat, 10 to 19" },
-  { city: "Milan", where: "Tortona district", hours: "Tue to Sat, 10 to 19" },
-  {
-    city: "Copenhagen",
-    where: "Frederiksstaden",
-    hours: "Tue to Sat, 10 to 18",
-  },
-  { city: "London", where: "Clerkenwell", hours: "Mon to Sat, 10 to 18" },
-];
+import { useI18n } from "@/i18n/provider";
 
 const IN = { once: true, amount: 0.4 } as const;
 
+type Room = { city: string; where: string; hours: string };
+
 export function Showrooms() {
+  const { t } = useI18n();
+  const ROOMS = t.showrooms.rooms;
   return (
     <section
       id="showrooms"
@@ -27,10 +21,10 @@ export function Showrooms() {
     >
       <Reveal className="flex flex-wrap items-end justify-between gap-x-12 gap-y-6">
         <h2 className="display text-[clamp(40px,14vw,56px)] text-paper sm:text-[clamp(56px,9vw,152px)]">
-          Stand under one.
+          {t.showrooms.title}
         </h2>
         <p className="max-w-[30ch] text-[18px] leading-[1.4] font-medium">
-          Every showroom has working showers. Bring a towel, or borrow ours.
+          {t.showrooms.lede}
         </p>
       </Reveal>
 
@@ -56,13 +50,14 @@ export function Showrooms() {
  * has an explicit target. (A motion element with whileHover="label" stops
  * inheriting its parent's entrance labels, which is how a fill gets stuck open.)
  */
-function Row({ room: r, i }: { room: (typeof ROOMS)[number]; i: number }) {
+function Row({ room: r, i }: { room: Room; i: number }) {
+  const { t: copy } = useI18n();
   const [hov, setHov] = useState(false);
   const t = { duration: 0.5, ease: EXPO };
   return (
     <li className="relative">
       <motion.a
-        href="mailto:visit@nimbo.example?subject=Book%20a%20visit"
+        href={`mailto:visit@yenievleryapi.example?subject=${copy.showrooms.bookSubject}`}
         onHoverStart={() => setHov(true)}
         onHoverEnd={() => setHov(false)}
         onFocus={() => setHov(true)}
@@ -91,7 +86,7 @@ function Row({ room: r, i }: { room: (typeof ROOMS)[number]; i: number }) {
         <span className="text-[17px] font-medium">{r.where}</span>
         <span className="num text-[17px] font-medium">{r.hours}</span>
         <span className="text-[17px] font-bold lg:text-right">
-          Book a visit{" "}
+          {copy.showrooms.book}{" "}
           <motion.span
             className="inline-block"
             initial={false}

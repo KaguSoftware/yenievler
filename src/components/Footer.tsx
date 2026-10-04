@@ -8,12 +8,15 @@ import {
   type MotionValue,
 } from "framer-motion";
 import { useSmoothProgress } from "@/lib/motion";
+import { useI18n } from "@/i18n/provider";
+import { LangSwitch } from "./LangSwitch";
 
-const WORD = Array.from("nimbo");
+const LINES = ["yeni evler", "yapı"].map((l) => Array.from(l));
 
 export function Footer() {
   const ref = useRef<HTMLElement>(null);
   const reduced = !!useReducedMotion();
+  const { t } = useI18n();
   // The wordmark rises out of the floor, one letter after another, as the page runs out.
   const p = useSmoothProgress(ref, ["start end", "end end"], reduced);
 
@@ -25,27 +28,35 @@ export function Footer() {
     >
       <div
         aria-hidden
-        className="display -ml-[0.05em] overflow-hidden pt-[0.1em] text-[clamp(60px,22vw,140px)] sm:text-[clamp(88px,24vw,560px)] leading-[0.8] tracking-[-0.06em] text-signal"
+        className="display -ml-[0.05em] overflow-hidden pt-[0.1em] whitespace-nowrap text-[clamp(36px,11.5vw,400px)] leading-[0.8] tracking-[-0.06em] text-signal"
         style={{ fontWeight: 900 }}
       >
-        {WORD.map((ch, i) => (
-          <Letter key={i} p={p} i={i}>
-            {ch}
-          </Letter>
+        {LINES.map((line, li) => (
+          <div key={li}>
+            {line.map((ch, ci) => {
+              const i = LINES.slice(0, li).reduce((n, l) => n + l.length, 0) + ci;
+              return (
+                <Letter key={ci} p={p} i={i}>
+                  {ch === " " ? "\u00A0" : ch}
+                </Letter>
+              );
+            })}
+          </div>
         ))}
       </div>
       <div className="mt-8 flex flex-wrap justify-between gap-x-8 gap-y-4 text-[14px] text-paper/80">
-        <span>© 2026 Nimbo. Showers, basins, taps, baths and sinks.</span>
+        <span>{t.footer.tagline}</span>
         <div className="flex flex-wrap gap-x-7 gap-y-2">
-          <a href="mailto:trade@nimbo.example" className="hover:text-paper">
-            Trade programme
+          <a href="mailto:trade@yenievleryapi.example" className="hover:text-paper">
+            {t.footer.trade}
           </a>
-          <a href="mailto:care@nimbo.example" className="hover:text-paper">
-            Care and warranty
+          <a href="mailto:care@yenievleryapi.example" className="hover:text-paper">
+            {t.footer.care}
           </a>
           <a href="#top" className="hover:text-paper">
-            Back to top
+            {t.footer.top}
           </a>
+          <LangSwitch />
         </div>
       </div>
     </footer>
@@ -61,7 +72,7 @@ function Letter({
   i: number;
   children: string;
 }) {
-  const y = useTransform(p, [i * 0.07, i * 0.07 + 0.55], ["110%", "0%"], {
+  const y = useTransform(p, [i * 0.03, i * 0.03 + 0.5], ["110%", "0%"], {
     clamp: true,
     ease: (t) => (t >= 1 ? 1 : 1 - Math.pow(2, -10 * t)),
   });

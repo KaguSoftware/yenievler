@@ -11,7 +11,7 @@ import * as M from "@/lib/minute";
 import { EXPO, useSmoothProgress } from "@/lib/motion";
 
 const TICKS = [5, 10, 15];
-const SAVED = M.fmtLitres(M.RATE_STANDARD - M.RATE_NIMBO);
+const SAVED = M.fmtLitres(M.RATE_STANDARD - M.RATE_YENI_EVLER_YAPI);
 
 export function Minute() {
   const sec = useRef<HTMLElement>(null);
@@ -52,7 +52,7 @@ export function Minute() {
     M.fmtLitres(M.litres(v, M.RATE_STANDARD)),
   );
   const litresB = useTransform(p, (v) =>
-    M.fmtLitres(M.litres(v, M.RATE_NIMBO)),
+    M.fmtLitres(M.litres(v, M.RATE_YENI_EVLER_YAPI)),
   );
 
   // Captions: three beats, cross-faded in place.
@@ -74,7 +74,7 @@ export function Minute() {
   const bandY = useTransform(p, (v) => M.reveal(v, 0.86, 0.96));
   const bandLabel = useTransform(p, (v) => M.reveal(v, 0.93, 0.99));
 
-  const halfFill = M.RATE_NIMBO / M.CAPACITY;
+  const halfFill = M.RATE_YENI_EVLER_YAPI / M.CAPACITY;
   const fullFill = M.RATE_STANDARD / M.CAPACITY;
   const at = (f: number) => `calc(var(--jb, 520px) - var(--jh, 380px) * ${f})`;
 
@@ -92,13 +92,13 @@ export function Minute() {
         <div ref={stage} className="absolute inset-0" aria-hidden />
         <p className="sr-only">
           In one minute a standard head runs {M.fmtLitres(M.RATE_STANDARD)}{" "}
-          litres. The R-360 runs {M.fmtLitres(M.RATE_NIMBO)}.
+          litres. The R-360 runs {M.fmtLitres(M.RATE_YENI_EVLER_YAPI)}.
         </p>
         {failed && (
           <p className="absolute top-1/3 right-[var(--pad)] max-w-60 text-sm">
             The 3D scene needs WebGL. The numbers still hold:{" "}
             {M.fmtLitres(M.RATE_STANDARD)} litres against{" "}
-            {M.fmtLitres(M.RATE_NIMBO)}.
+            {M.fmtLitres(M.RATE_YENI_EVLER_YAPI)}.
           </p>
         )}
 
@@ -178,7 +178,7 @@ export function Minute() {
             left="var(--bx, 70%)"
             litres={litresB}
             name="R-360 rain head"
-            rate={`${M.fmtLitres(M.RATE_NIMBO)} L/min`}
+            rate={`${M.fmtLitres(M.RATE_YENI_EVLER_YAPI)} L/min`}
             delay={0.72}
             tone="text-paper"
           />

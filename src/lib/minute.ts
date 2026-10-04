@@ -8,8 +8,8 @@ import { FLOWS } from "./three/flows";
 /** Jug capacity in litres. */
 export const CAPACITY = 16;
 /** Half of 7.6 is what the site claims, so a standard head runs twice the R-360. */
-export const RATE_NIMBO = FLOWS.rain.rate;
-export const RATE_STANDARD = RATE_NIMBO * 2;
+export const RATE_YENI_EVLER_YAPI = FLOWS.rain.rate;
+export const RATE_STANDARD = RATE_YENI_EVLER_YAPI * 2;
 
 /** Scroll progress at which the tap opens and closes. */
 export const T_ON = 0.1;
