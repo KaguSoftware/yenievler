@@ -15,8 +15,8 @@ const FLOOR = 1.2;
 export interface BasinStage extends Stage {
   /** Text for the canvas while this station is live. */
   label(): string;
-  /** Switch shadows on once so every shader variant compiles before the first frame. */
-  prewarm(): void;
+  /** Set the shadow lamp for a shader warm-up (update() sets it back from the timeline). */
+  prewarm(cast?: boolean): void;
 }
 
 /** Wall-hung stone basin with a wall spout, as in the old builder. Drag to orbit. */
@@ -31,6 +31,10 @@ export function buildBasin(ctx: BuildCtx, water: Water, jets: Jets): BasinStage 
   dl.shadow.mapSize.set(2048, 2048);
   Object.assign(dl.shadow.camera, { left: -3, right: 3, top: 3, bottom: -3, near: 0.5, far: 15 });
   dl.shadow.bias = -0.0004;
+  // The light rides with the group and nothing it lights moves on its own, so the 2048 map is redrawn
+  // only when something in it changes, not on every frame the camera orbits (see shadowKey below).
+  dl.shadow.autoUpdate = false;
+  dl.shadow.needsUpdate = true;
   const fill = new THREE.DirectionalLight(0xd8e4ff, 0.5);
   fill.position.set(-3, 2, 2);
   group.add(dl, dl.target, fill, fill.target);
@@ -181,13 +185,14 @@ export function buildBasin(ctx: BuildCtx, water: Water, jets: Jets): BasinStage 
 
   let time = 0;
   const off = new THREE.Vector3();
+  let shadowKey = "";
 
   return {
     group,
     label: () =>
       `3D basin in ${STONES[ui.stone].name} with ${FINISHES[ui.finish].name.toLowerCase()} fittings. Drag to orbit.`,
-    prewarm() {
-      dl.castShadow = true;
+    prewarm(cast = true) {
+      dl.castShadow = cast;
     },
     always(f: Frame) {
       // Out of range the spout is closed, so no stream is left running where the basin was.
@@ -233,6 +238,16 @@ export function buildBasin(ctx: BuildCtx, water: Water, jets: Jets): BasinStage 
       water.spill.z = group.position.z + 0.12;
       water.spill.x0 = -1.15;
       water.spill.x1 = 1.15;
+
+      // Redraw the shadow map when the casters or their place under the light change. The sink's
+      // parts can reach into the light's box while both stages are in, so that always redraws.
+      if (dl.castShadow) {
+        const k = `${group.position.y.toFixed(4)}|${lever.rotation.z}|${s[C.sinkOn] > 0.01 ? time : 0}`;
+        if (k !== shadowKey) {
+          shadowKey = k;
+          dl.shadow.needsUpdate = true;
+        }
+      } else shadowKey = "";
 
       // Orbit the camera about the look target, only while the configurator is live.
       live = cfg > 0.6;

@@ -112,9 +112,13 @@ export const C = {
 } as const;
 export const N_CH = 49;
 
+export type Kind = "desktop" | "mobile";
+
 export interface KeyDef {
   /** Used by reduced motion (rest poses) and by the docs table. */
   name?: string;
+  /** A key that exists in one key set only (the other set skips it, so it is not a hold there). */
+  only?: Kind;
   at: Anchor;
   /** Ease of the segment that ENDS at this key. Default smoothstep. */
   linear?: boolean;
@@ -307,6 +311,10 @@ const DESKTOP: KeyDef[] = [
     at: end("sink", 0),
     cam: [1.4, SK + 2.6, 2.45], look: [0, SK - 0.05, -0.05], sinkSeq: 4.6,
   },
+  // Phones: the console's band comes up from below the screen. The sink waits where the show left it
+  // until the band is about to reach it, and only then takes to the pin, so it is picked up and carried
+  // to the top instead of dipping towards a window that is still off screen.
+  { name: "sink-lift", only: "mobile", at: top("sink-spec", -0.6) },
   // The console: the sink is framed in its DOM window and follows the keys there. The pin narrows the
   // lens by the window's share of the screen, which magnifies by 1/k^2 of the window; the window here
   // is about 0.56 of the screen, so the lens starts wide (86 deg pinned is about 50 deg) and the sink
@@ -320,8 +328,7 @@ const DESKTOP: KeyDef[] = [
   // the words and the console drop away over it (Sink.tsx), the pin lets go while the window is still
   // in view, so the sink grows out of it to fill the screen, and the camera goes into the bowl.
   { name: "sink-spec-hold", at: top("sink-dive", -0.2) },
-  // Desktop: the camera sets off as the last words go. Phones have no sticky window (it is long gone
-  // by now), so the world veils into the paper here and the pin lets go behind the veil.
+  // The camera sets off as the last words go (phones a little earlier, see MOBILE).
   // From here to the plunge is one glide run: the camera never stops at a key on the way down.
   { name: "dive-veil", at: top("sink-dive", -0.1) },
   {
@@ -444,29 +451,43 @@ const MOBILE: Record<string, Partial<KeyDef>> = {
   range: { fov: 52 },
   "range-end": { fov: 52 },
   "sink-veil": { fov: 52 },
-  "sink-pop": { shift: [0, -0.22] },
-  "sink-in": { cam: [1.7, SK + 3.0, 4.2], look: [0, SK + 0.1, -0.05], fov: 44 },
-  "sink-k1": { cam: [1.1, SK + 2.0, 3.2], look: [0.05, SK + 0.2, -0.08] },
-  "sink-k2": { cam: [0.25, SK + 1.9, 4.0], look: [-0.05, SK - 0.05, -0.12] },
-  "sink-k3": { cam: [-2.0, SK + 2.0, 2.6], look: [-0.3, SK + 0.05, -0.2] },
-  "sink-k4": { cam: [2.1, SK + 2.2, 2.4], look: [0.2, SK + 0.1, -0.15] },
-  // Phones: the console heading comes up where the sink sits, so the sink drops off the bottom first.
-  "sink-wide": { cam: [1.6, SK + 2.7, 3.8], look: [0, SK + 0.05, -0.05], shift: [0, -1.6] },
-  // The phone window is square, about 0.42 of the screen: a wider lens still.
-  "sink-spec": { cam: [1.3, SK + 2.0, 2.2], fov: 113 },
-  // Phones: the world fades with the falling words, the pin lets go behind the veil, and the sink fades
-  // back in over half a screen while the camera is already gliding down.
-  "sink-spec-hold": { at: top("sink-dive", -0.45), veil: 0 },
-  "dive-veil": { at: top("sink-dive", -0.15), veil: 1 },
-  "dive-free": { at: top("sink-dive", -0.05), cam: [0.5, SK + 2.3, 1.45], fov: 50 },
+  // Phones: the heading is on its way up the screen while the veil lifts, with the range's last rows
+  // above it. So the camera is already in its seat behind the veil, and the sink fades in below the
+  // words, low on the screen, and rises into place under the heading instead of crossing it.
+  "sink-pop": { cam: [2.5, SK + 4.4, 6.2], look: [0, SK + 0.1, -0.05], fov: 44, shift: [0, -0.95] },
+  // Phones: every key keeps the whole sink, outlets and taps, inside the screen's width (the captions
+  // need the room beside it too), so these sit a quarter further back than the shots they echo.
+  "sink-in": { cam: [2.13, SK + 3.73, 5.26], look: [0, SK + 0.1, -0.05], fov: 44, shift: [0, -0.22] },
+  "sink-k1": { cam: [1.36, SK + 2.45, 4.02], look: [0.05, SK + 0.2, -0.08] },
+  "sink-k2": { cam: [0.3, SK + 2.19, 4.62], look: [-0.05, SK - 0.05, -0.12] },
+  "sink-k3": { cam: [-2.6, SK + 2.85, 3.8], look: [0.12, SK + 0.05, -0.2] },
+  "sink-k4": { cam: [2.75, SK + 3.1, 3.55], look: [0.5, SK + 0.1, -0.15] },
+  "sink-wide": { cam: [1.84, SK + 3.1, 4.38], look: [0, SK + 0.05, -0.05] },
+  // Phones: the console is a sticky stage (Sink.tsx) with the sink's window as a band across the top
+  // of the screen, about 0.4 of it, and the words scrolling beneath. So the sink glides from the show
+  // up into the band and stays in shot, as it does in the desktop column. A wider lens still.
+  "sink-spec": { cam: [1.5, SK + 2.3, 2.6], fov: 113 },
+  // The last row passes under the band at sink-dive -0.5 (Sink.tsx). The pin lets go right after it:
+  // the sink grows out of the band to fill the screen while the camera is already on its way down.
+  "sink-spec-hold": { at: top("sink-dive", -0.5) },
+  "dive-veil": { at: top("sink-dive", -0.4) },
+  "dive-free": { at: top("sink-dive", 0.15), cam: [0.5, SK + 2.3, 1.45], fov: 50 },
   "drain-a": { cam: [0.3, SK + 1.9, 1.0], fov: 44 },
   "drain-mouth": { fov: 52 },
   "drain-b": { fov: 70 },
-  approach: { at: top("cfg", -0.2), cam: [1.9, G + 6.6, 3.6], fov: 40 },
-  basin: { at: top("cfg", 0.1), cam: [3.8, G + 4.4, 7.4], fov: 38 },
-  "basin-hold": { at: end("cfg", 0.1) },
-  "spill-a": { cam: [2.8, G + 3.6, 5.4], fov: 40 },
-  "spill-b": { cam: [3.2, G + 5.2, 7.6], fov: 42 },
+  // Phones: the basin builder is a sticky stage too (Configurator.tsx), and its band is a screen and a
+  // half below when the camera comes out of the pipe. So the dark lifts on a free shot from straight
+  // above the basin, the camera comes down on it, and the band picks it up as it arrives.
+  pipe: { cam: [0.6, G + 9.6, 2.0], fov: 46, pin: 0 },
+  "pipe-out": { cam: [1.2, G + 7.8, 3.2], fov: 42 },
+  approach: { at: top("cfg", -0.6), cam: [2.0, G + 5.6, 4.8], fov: 38, pin: 0 },
+  // In the band, about 0.4 of the screen (see sink-spec for why the lens is this wide).
+  basin: { at: top("cfg", 0), cam: [4.15, G + 4.85, 8.05], look: [0, G + 1.7, 0.15], fov: 50 },
+  // The panel's last row passes under the band here. The stage holds for half a screen more, and in
+  // it the pin lets go: the overflow starts from a basin that is still in shot.
+  "basin-hold": { at: end("cfg", -0.5) },
+  "spill-a": { at: end("cfg", 0), cam: [2.8, G + 3.6, 5.4], fov: 40, pin: 0 },
+  "spill-b": { at: top("spill", -0.25), cam: [3.2, G + 5.2, 7.6], fov: 42 },
   "spill-c": { cam: [1.4, G + 8.4, 8.2], fov: 42 },
   rooms: { cam: [0.3, G + 9.6, 5.2], fov: 44 },
   pool: { cam: [0, G + 10.4, 0.5], fov: 44 },
@@ -566,10 +587,8 @@ function flatten(prev: Float64Array | null, k: KeyDef): Float64Array {
   return f;
 }
 
-export type Kind = "desktop" | "mobile";
-
 export function buildTimeline(kind: Kind): Timeline {
-  const defs = DESKTOP.map((d) => {
+  const defs = DESKTOP.filter((d) => !d.only || d.only === kind).map((d) => {
     const m = kind === "mobile" && d.name ? MOBILE[d.name] : undefined;
     return m ? { ...d, ...m } : d;
   });

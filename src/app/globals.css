@@ -23,8 +23,8 @@
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Phone layout of the exploded view. exploded.ts sets [data-compact] on the
-   labels layer when the stage is narrower than 640px, so CSS and JS agree. */
+/* Small captions on the 3D parts (exploded view, sink show). exploded.ts and sink.ts set
+   [data-compact] on the labels layer on phones, portrait screens and short landscape ones. */
 @custom-variant compact (&:where([data-compact] *));
 
 /* The page is laid out for the 3D world (canvas behind, sections transparent) unless WebGL is
@@ -40,6 +40,44 @@
   }
   @media (max-aspect-ratio: 1/1) {
     @slot;
+  }
+}
+
+/* Phones on their side, and any window too short for a stacked hero: sections flow at their own
+   height instead of keeping a desktop minimum taller than the screen. */
+@custom-variant short {
+  @media (max-height: 539.98px) and (orientation: landscape) {
+    @slot;
+  }
+}
+
+/* Phones and narrow portrait screens, with the 3D world on and motion allowed: the sink console is
+   a sticky stage (Sink.tsx). The sink keeps a band at the top of the screen and the words scroll
+   beneath it, so the camera can dive from a sink that is still in shot, as it does on desktop.
+   The basin builder does the same (Configurator.tsx). The same shape test as `stack` and as the
+   world's mobile key set (world.ts), so the layout and the camera keys framed for it always agree.
+   The selector outweighs a plain `lg:` utility, so on a wide portrait screen the stage wins. */
+@custom-variant stage {
+  @media (prefers-reduced-motion: no-preference) and (max-width: 639.98px) {
+    html:is([data-world="pending"], [data-world="on"]) & {
+      @slot;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) and (max-aspect-ratio: 1/1) {
+    html:is([data-world="pending"], [data-world="on"]) & {
+      @slot;
+    }
+  }
+}
+
+/* Landscape screens below the desktop grid (a phone on its side, a small window): these use the
+   desktop camera keys, which expect the subject's window to stay on screen. So the sink console and
+   the basin builder go side by side there too, words in one column and a sticky window in the other. */
+@custom-variant side {
+  @media (min-width: 640px) and (max-width: 1023.98px) and (min-aspect-ratio: 1/1) {
+    html:is([data-world="pending"], [data-world="on"]) & {
+      @slot;
+    }
   }
 }
 

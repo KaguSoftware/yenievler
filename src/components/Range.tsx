@@ -67,10 +67,10 @@ export function Range() {
     <section
       id="range"
       data-station="range"
-      className="bg-paper px-[var(--pad)] py-[clamp(80px,11vw,160px)] world:bg-transparent"
+      className="bg-paper px-[var(--pad)] py-[clamp(56px,11vw,160px)] world:bg-transparent"
     >
       <Reveal>
-        <h2 className="display max-w-[20ch] text-[clamp(44px,6.4vw,108px)] text-balance">
+        <h2 className="display max-w-[20ch] text-[clamp(34px,6.4vw,108px)] text-balance">
           {t.range.title}
         </h2>
       </Reveal>
@@ -151,7 +151,7 @@ export function Range() {
           </div>
           <motion.p
             key={c}
-            className="max-w-[36ch] text-[19px] leading-[1.4] font-medium"
+            className="max-w-[36ch] text-[15px] leading-[1.4] font-medium sm:text-[19px]"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, ease: EXPO }}
@@ -176,7 +176,7 @@ export function Range() {
                   onMouseEnter={() => setI(idx)}
                   onFocus={() => setI(idx)}
                   onClick={() => setI(idx)}
-                  className="flex w-full items-baseline justify-between gap-4 py-3.5 text-left text-[17px]"
+                  className="flex w-full items-baseline justify-between gap-4 py-3 text-left text-[15px] sm:py-3.5 sm:text-[17px]"
                   style={{ fontWeight: idx === i ? 700 : 450 }}
                 >
                   <span>{it.name}</span>
@@ -225,7 +225,7 @@ function Tab({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.4 }}
       transition={{ duration: 1.2, ease: EXPO, delay: idx * 0.09 }}
-      className="display flex items-baseline gap-5 border-t border-ink/15 py-[0.12em] text-left text-[clamp(40px,14vw,64px)] last:border-b sm:text-[clamp(64px,10vw,168px)]"
+      className="display flex items-baseline gap-5 border-t border-ink/15 py-[0.12em] text-left text-[clamp(34px,11vw,64px)] last:border-b sm:text-[clamp(64px,10vw,168px)]"
     >
       <span className="narrow num w-8 shrink-0 text-[15px] font-semibold tracking-normal text-ink/72">
         0{idx + 1}

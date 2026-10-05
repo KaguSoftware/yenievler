@@ -18,12 +18,12 @@ export function SinkShow() {
       aria-labelledby="sink-title"
       className="relative bg-paper world:h-[460vh] world:bg-transparent motion-reduce:world:h-[100svh]"
     >
-      <div className="noworld:static noworld:h-auto noworld:min-h-0 noworld:overflow-visible noworld:px-[var(--pad)] noworld:pt-[clamp(80px,11vw,160px)] sticky top-0 h-[100svh] min-h-[620px] overflow-hidden">
+      <div className="noworld:static noworld:h-auto noworld:min-h-0 noworld:overflow-visible noworld:px-[var(--pad)] noworld:pt-[clamp(80px,11vw,160px)] sticky top-0 h-[100svh] min-h-[620px] overflow-hidden short:min-h-0!">
         <Reveal className="pointer-events-none absolute top-[clamp(28px,6vh,64px)] left-[var(--pad)] max-w-[560px] noworld:static">
-          <h2 id="sink-title" className="display text-[clamp(40px,5.4vw,92px)]">
+          <h2 id="sink-title" className="display text-[clamp(34px,5.4vw,92px)]">
             {t.sinkShow.titleA} <span className="text-signal-deep">{t.sinkShow.titleB}</span>
           </h2>
-          <p className="mt-4 max-w-[30ch] text-[17px] leading-[1.4] font-medium text-ink/78">
+          <p className="mt-4 max-w-[30ch] text-[15px] leading-[1.4] sm:text-[17px] font-medium text-ink/78">
             {t.sinkShow.lede}
           </p>
         </Reveal>
@@ -60,6 +60,7 @@ export function SinkShow() {
 
         <div
           aria-hidden
+          data-sink-foot=""
           className="noworld:hidden absolute right-[var(--pad)] bottom-8 left-[var(--pad)] flex items-center gap-5 text-[12px] font-semibold tracking-[0.06em] text-ink/78 uppercase"
         >
           <div className="flex gap-1.5 rounded-[6px] bg-[#0b0c0e] p-1.5">

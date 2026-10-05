@@ -87,7 +87,7 @@ export function Minute() {
     >
       <div
         ref={host}
-        className="sticky top-0 h-[100svh] min-h-[620px] overflow-hidden"
+        className="sticky top-0 h-[100svh] min-h-[620px] overflow-hidden short:min-h-0!"
       >
         <div ref={stage} className="absolute inset-0" aria-hidden />
         <p className="sr-only">

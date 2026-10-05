@@ -3,8 +3,11 @@ import { domRef, nozzlePositions, smooth } from "./common";
 import { C, HEAD_R, HEAD_Y } from "./timeline";
 import type { BuildCtx, Frame, Stage } from "./stage";
 
-/** Below this viewport width the labels sit on the parts instead of beside them. */
-const COMPACT_W = 640;
+/**
+ * Phones, portrait tablets (the head is centred, so there is no column beside it) and short landscape
+ * screens (five captions with body copy do not fit one above the other): the labels sit on the parts.
+ */
+const COMPACT_H = 560;
 
 /** Assembled and exploded offsets of the five layers, body first. */
 const ASM = [0, -0.03, -0.055, -0.075, -0.09];
@@ -160,7 +163,7 @@ export function buildExploded(ctx: BuildCtx): Stage {
 
       const lab = labelsEl();
       if (!lab) return;
-      const compact = f.vw < COMPACT_W;
+      const compact = f.mobile || f.vh < COMPACT_H;
       if (lab.hasAttribute("data-compact") !== compact) lab.toggleAttribute("data-compact", compact);
       if (nodesFor !== lab) {
         nodesFor = lab;
@@ -181,7 +184,8 @@ export function buildExploded(ctx: BuildCtx): Stage {
         v.setFromMatrixPosition(g.matrixWorld);
         v.addScaledVector(right, compact ? 1.05 : 1.28);
         v.project(f.cam);
-        const sx = ((v.x + 1) / 2) * f.vw;
+        // Compact chips end at their anchor; keep that end off the screen's edge.
+        const sx = compact ? Math.min(((v.x + 1) / 2) * f.vw, f.vw - 12) : ((v.x + 1) / 2) * f.vw;
         const sy = ((1 - v.y) / 2) * f.vh;
         node.style.opacity = opS;
         node.style.transform = compact

@@ -15,14 +15,7 @@ import { ui } from "@/lib/three/state";
 import { useWorldStatus } from "@/lib/useWorldStatus";
 import { EXPO, SOFT_SPRING } from "@/lib/motion";
 import { fill, useI18n } from "@/i18n/provider";
-
-const LINKS = [
-  { href: "#range", key: "range" },
-  { href: "#sink", key: "sink" },
-  { href: "#inside", key: "inside" },
-  { href: "#basin", key: "basin" },
-  { href: "#showrooms", key: "showrooms" },
-] as const;
+import { LangGlobe } from "./LangSwitch";
 
 const ENTER: Variants = {
   hidden: { opacity: 0, y: "0.5em" },
@@ -141,7 +134,7 @@ export function Hero() {
       id="top"
       aria-label="Yeni Evler Yapı"
       data-station="hero"
-      className="relative isolate h-[100svh] min-h-[780px] overflow-hidden max-sm:min-h-[700px] bg-signal text-ink-deep world:bg-transparent"
+      className="relative isolate h-[100svh] min-h-[780px] overflow-hidden max-sm:flex max-sm:h-auto max-sm:min-h-[max(100svh,640px)] max-sm:flex-col short:flex! short:h-auto! short:min-h-[100svh]! short:flex-col! bg-signal text-ink-deep world:bg-transparent"
     >
       {failed && (
         <p className="absolute right-[var(--pad)] top-1/3 max-w-60 text-sm">
@@ -153,7 +146,7 @@ export function Hero() {
         initial={{ opacity: 0, y: -14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.9, ease: EXPO, delay: 0.05 }}
-        className="absolute inset-x-0 top-0 z-10 flex flex-wrap items-center justify-between gap-x-8 gap-y-3 px-[var(--pad)] py-6 max-sm:py-4"
+        className="absolute inset-x-0 top-0 z-10 flex flex-wrap items-center justify-between gap-x-8 gap-y-3 px-[var(--pad)] py-6 max-sm:relative max-sm:py-4 short:relative! short:py-4!"
       >
         <div className="flex flex-wrap items-center gap-x-12 gap-y-3 max-sm:contents">
           <a
@@ -162,35 +155,26 @@ export function Hero() {
           >
             yeni evler yapı
           </a>
-          <ul className="flex flex-wrap gap-x-7 gap-y-0 text-[15px] font-medium max-sm:order-3 max-sm:w-full max-sm:gap-x-5 max-sm:text-[14px]">
-            {LINKS.map((l) => (
-              <li key={l.href}>
-                <a
-                  href={l.href}
-                  className="inline-block underline-offset-[6px] transition-[text-decoration-color] hover:underline max-sm:py-1.5"
-                >
-                  {t.nav[l.key]}
-                </a>
-              </li>
-            ))}
-          </ul>
         </div>
-        <motion.a
-          href="#showrooms"
-          whileHover={lift}
-          transition={liftTransition}
-          className="rounded-full bg-ink px-5 py-2.5 text-[15px] font-semibold text-paper max-sm:order-2 max-sm:px-4 max-sm:py-2 max-sm:text-[14px]"
-        >
-          {t.nav.findShowroom}
-        </motion.a>
+        <div className="flex items-center gap-3 max-sm:order-2">
+          <LangGlobe />
+          <motion.a
+            href="#showrooms"
+            whileHover={lift}
+            transition={liftTransition}
+            className="rounded-full bg-ink px-5 py-2.5 text-[15px] font-semibold text-paper max-sm:hidden"
+          >
+            {t.nav.findShowroom}
+          </motion.a>
+        </div>
       </motion.nav>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-wrap items-end justify-between gap-x-10 gap-y-8 px-[var(--pad)] pb-[clamp(24px,5vh,56px)]">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-wrap items-end justify-between gap-x-10 gap-y-8 px-[var(--pad)] pb-[clamp(24px,5vh,56px)] max-sm:relative max-sm:mt-auto max-sm:gap-y-6 max-sm:pt-8 short:relative! short:mt-auto! short:gap-y-6! short:pt-10! short:pb-6!">
         <div className="max-w-[1000px]">
           <motion.div style={scrollOut(titleY, titleO)}>
             <motion.h1
               aria-label={`${t.hero.titleA} ${t.hero.titleB}`}
-              className="display text-[clamp(52px,17.5vw,68px)] text-paper sm:text-[clamp(68px,10vw,168px)]"
+              className="display text-[clamp(52px,17.5vw,68px)] text-paper sm:text-[clamp(68px,10vw,168px)] short:text-[clamp(52px,8vw,96px)]!"
               initial="hidden"
               animate={titleCtl}
             >
@@ -205,17 +189,9 @@ export function Hero() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 1, ease: EXPO, delay: 0.42 }}
             >
-              <p className="max-w-[34ch] text-[17px] leading-[1.45] font-medium">
+              <p className="max-w-[34ch] text-[15px] leading-[1.45] font-medium sm:text-[17px]">
                 {t.hero.lede}
               </p>
-              <motion.a
-                href="#range"
-                whileHover={lift}
-                transition={liftTransition}
-                className="pointer-events-auto rounded-full bg-paper px-6 py-3 text-[15px] font-semibold"
-              >
-                {t.hero.seeRange}
-              </motion.a>
             </motion.div>
           </motion.div>
         </div>
@@ -268,10 +244,10 @@ function Console({
       aria-label={t.hero.mixerLabel}
       className="flex items-center gap-3 rounded-[44px_14px_14px_44px] p-3 pr-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-7px_0_rgba(0,0,0,0.38),0_26px_50px_rgba(60,15,0,0.45),0_2px_0_#0b0c0e] [background:linear-gradient(180deg,oklch(0.42_0.01_255)_0%,oklch(0.31_0.01_255)_34%,oklch(0.23_0.01_255)_100%)] max-[520px]:flex-col max-[520px]:items-stretch max-[520px]:rounded-[40px_14px_14px_40px] max-[520px]:pr-3 sm:gap-4 sm:p-4 sm:pr-5"
     >
-      <div className="flex h-[76px] min-w-[104px] shrink-0 flex-col justify-center gap-1.5 rounded-[30px_6px_6px_30px] bg-[oklch(0.15_0.008_255)] py-3 pr-3 pl-5 max-[520px]:h-14 max-[520px]:min-w-0 max-[520px]:flex-row max-[520px]:items-center max-[520px]:justify-between max-[520px]:py-2 max-[520px]:pr-5 shadow-[inset_0_2px_7px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.09)] sm:min-w-[120px]">
+      <div className="flex h-[76px] min-w-[104px] shrink-0 flex-col justify-center gap-1.5 rounded-[30px_6px_6px_30px] bg-[oklch(0.15_0.008_255)] py-3 pr-3 pl-5 max-[520px]:h-12 max-[520px]:min-w-0 max-[520px]:flex-row max-[520px]:items-center max-[520px]:justify-between max-[520px]:py-2 max-[520px]:pr-5 shadow-[inset_0_2px_7px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.09)] sm:min-w-[120px]">
         <div
           aria-hidden
-          className="narrow num flex items-baseline gap-1 text-[40px] leading-none font-semibold tracking-[0.01em] text-signal [text-shadow:0_0_14px_oklch(0.65_0.205_38/0.7)]"
+          className="narrow num flex items-baseline gap-1 text-[40px] leading-none max-[520px]:text-[30px] font-semibold tracking-[0.01em] text-signal [text-shadow:0_0_14px_oklch(0.65_0.205_38/0.7)]"
         >
           <motion.span>{rateText}</motion.span>
           <span className="text-[13px] font-medium tracking-wider">{t.hero.unit}</span>
@@ -346,7 +322,7 @@ function Console({
                 animate={{ y: on ? 4 : 0, boxShadow: on ? KEY_DOWN : KEY_UP }}
                 whileTap={{ y: 5, boxShadow: KEY_DOWN }}
                 transition={{ duration: 0.15, ease: "easeOut" }}
-                className="flex h-[58px] cursor-pointer flex-col items-center justify-end rounded-[3px_3px_8px_8px] border-0 pb-[9px] [background:linear-gradient(180deg,#fff_0%,#f0f0ef_62%,#d6d6d4_100%)] focus-visible:outline-signal"
+                className="flex h-[58px] cursor-pointer flex-col items-center justify-end rounded-[3px_3px_8px_8px] border-0 pb-[9px] max-sm:h-11 max-sm:pb-[7px] [background:linear-gradient(180deg,#fff_0%,#f0f0ef_62%,#d6d6d4_100%)] focus-visible:outline-signal"
               >
                 <span
                   className="h-[3px] w-4 rounded-sm"

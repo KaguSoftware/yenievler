@@ -5,6 +5,7 @@ import { easeIn, motion, useReducedMotion, useScroll, useTransform } from "frame
 import { Reveal } from "./Reveal";
 import { EXPO } from "@/lib/motion";
 import { useWorldStatus } from "@/lib/useWorldStatus";
+import { useStage } from "@/lib/useStage";
 import { sinkUi } from "@/lib/three/sinkState";
 import { fill, useI18n } from "@/i18n/provider";
 
@@ -144,6 +145,13 @@ export function Sink() {
   const dropV = useTransform(dive, (v) => (v >= 0.8 ? "hidden" : "visible"));
   const drop = world && !reduced ? { y: dropY, opacity: dropO, visibility: dropV } : undefined;
 
+  // Phones: the section is a sticky stage (useStage). The sink keeps a band at the top, and the
+  // heading, the console and the rows ride up beneath it. So the sink is in shot the whole way and
+  // the dive starts from it, exactly as on desktop. The last half screen of the ride overlaps the
+  // outro, so the dive follows the last row without a pause.
+  const { track, stage, band, tail, on: staged, y: paneY, fade: fadeO } = useStage(-0.5);
+  const ride = staged ? { y: paneY } : undefined;
+
   const running = OUTLETS.filter((o) => on[o.id]);
 
   const toggle = (id: Outlet) => {
@@ -166,25 +174,45 @@ export function Sink() {
       id="sink-spec"
       data-station="sink-spec"
       aria-labelledby="sink-spec-title"
-      className="bg-paper px-[var(--pad)] py-[clamp(80px,11vw,160px)] world:bg-transparent"
+      className="bg-paper px-[var(--pad)] py-[clamp(56px,11vw,160px)] world:bg-transparent stage:py-0"
     >
       <style href="yeni-evler-yapi-sink" precedence="default">
         {WATER_CSS}
       </style>
       {/* Two columns from the top edge: words on the left, and on the right a sticky window the 3D
           sink glides into from the show above, so it never crosses the text. */}
-      <div className="grid items-start gap-x-[clamp(32px,5vw,88px)] gap-y-12 lg:grid-cols-[minmax(340px,1fr)_minmax(0,1.3fr)]">
-        <Reveal className="flex flex-col gap-6 lg:col-start-1 lg:row-start-1">
-          <h2 id="sink-spec-title" className="display max-w-[14ch] text-[clamp(44px,6.4vw,108px)] text-balance">
-            {t.sink.title}
-          </h2>
-          <p className="max-w-[34ch] text-[18px] leading-[1.4] font-medium">
-            {t.sink.lede}
-          </p>
-        </Reveal>
-        <div className="flex min-w-0 flex-col gap-5 lg:sticky lg:top-8 lg:col-start-2 lg:row-span-2 lg:row-start-1">
+      <div
+        ref={track}
+        className="grid items-start gap-x-[clamp(32px,5vw,88px)] gap-y-8 sm:gap-y-12 lg:grid-cols-[minmax(340px,1fr)_minmax(0,1.3fr)] side:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] stage:block stage:[--stage:1]"
+      >
+        {/* Desktop: no box, its children are the grid's. Phones: the sticky stage, one screen tall,
+            with the sink's window as a band across its top and everything else clipped below it. */}
+        <div
+          ref={stage}
+          className="contents stage:sticky stage:top-0 stage:-mx-[var(--pad)] stage:block stage:h-lvh stage:px-[var(--pad)] stage:pt-[calc(var(--band)+26px)] stage:[--band:40lvh] stage:[clip-path:inset(var(--band)_0_0_0)]"
+        >
+        {/* The words fade into the paper as they reach the band, instead of being cut by a line. */}
+        <motion.div
+          aria-hidden
+          style={{ opacity: fadeO }}
+          className="pointer-events-none absolute inset-x-0 top-[var(--band)] z-10 hidden h-7 bg-[linear-gradient(to_bottom,var(--bg),transparent)] stage:block"
+        />
+        <motion.div style={ride} className="lg:col-start-1 lg:row-start-1 side:col-start-1 stage:will-change-transform">
+          <Reveal className="flex flex-col gap-6">
+            <h2 id="sink-spec-title" className="display max-w-[14ch] text-[clamp(34px,6.4vw,108px)] text-balance">
+              {t.sink.title}
+            </h2>
+            <p className="max-w-[34ch] text-[15px] leading-[1.4] font-medium sm:text-[18px]">
+              {t.sink.lede}
+            </p>
+          </Reveal>
+        </motion.div>
+        <div className="flex min-w-0 flex-col gap-5 lg:sticky lg:top-8 lg:col-start-2 lg:row-span-2 lg:row-start-1 side:contents stage:contents">
           {/* With WebGL the shared canvas draws the sink centred on this window (data-world-pin). */}
-          <div className="noworld:hidden relative aspect-square min-h-[260px] lg:aspect-auto lg:h-[min(56vh,560px)]">
+          <div
+            ref={band}
+            className="noworld:hidden relative aspect-square max-h-[62svh] min-h-[220px] lg:aspect-auto lg:h-[min(56vh,560px)] lg:max-h-none side:sticky side:top-[22lvh] side:col-start-2 side:row-span-4 side:row-start-1 side:aspect-auto side:h-[56lvh] side:max-h-none side:min-h-0 stage:absolute stage:inset-x-0 stage:top-0 stage:aspect-auto stage:h-[var(--band)] stage:max-h-none stage:min-h-0"
+          >
             <div data-world-pin="sink" className="pointer-events-none absolute inset-0" />
           </div>
           <Reveal className="world:hidden">
@@ -192,7 +220,7 @@ export function Sink() {
               <Drawing f={f} on={on} mode={mode} temp={temp} plug={plug} full={full} focus={focus} />
             </div>
           </Reveal>
-          <motion.div style={drop}>
+          <motion.div style={ride ?? drop} className="side:col-start-1 stage:mt-7 stage:will-change-transform">
             <Reveal delay={120}>
               <Console
                 on={on}
@@ -215,7 +243,7 @@ export function Sink() {
                         role="radio"
                         aria-checked={sel}
                         onClick={() => pickMode(m.id)}
-                        className="rounded-full border px-4 py-2 text-[14px] font-semibold transition-colors duration-200"
+                        className="rounded-full border px-3.5 py-1.5 text-[13px] font-semibold sm:px-4 sm:py-2 sm:text-[14px] transition-colors duration-200"
                         style={{
                           borderColor: sel ? "var(--color-ink)" : "oklch(0.19 0.015 45 / 0.25)",
                           background: sel ? "var(--color-ink)" : "transparent",
@@ -238,7 +266,11 @@ export function Sink() {
           </motion.div>
         </div>
 
-        <motion.div style={drop} className="flex flex-col gap-10 lg:col-start-1 lg:row-start-2">
+        <motion.div
+          ref={tail}
+          style={ride ?? drop}
+          className="flex flex-col gap-8 sm:gap-10 lg:col-start-1 lg:row-start-2 side:col-start-1 stage:mt-9 stage:will-change-transform"
+        >
           <ul className="flex flex-col" onMouseLeave={() => setFocus(null)}>
             {FEATURES.map((ft, i) => (
               <Feature key={ft.title} n={i + 1} ft={ft} hot={focus === ft.area} onHover={() => setFocus(ft.area)} />
@@ -250,7 +282,7 @@ export function Sink() {
               <span className="font-semibold">{t.sink.finish}</span>
               <span className="text-ink/78">{t.sink.finishes[finish].name}</span>
             </div>
-            <div className="grid max-w-[400px] grid-cols-4 gap-2.5" role="radiogroup" aria-label={t.sink.finish}>
+            <div className="grid max-w-[400px] grid-cols-4 gap-2.5 max-sm:flex max-sm:flex-wrap" role="radiogroup" aria-label={t.sink.finish}>
               {FINISHES.map((s, i) => (
                 <button
                   key={s.name}
@@ -259,7 +291,7 @@ export function Sink() {
                   aria-checked={i === finish}
                   aria-label={t.sink.finishes[i].name}
                   onClick={() => setFinish(i)}
-                  className="aspect-square rounded-full border-2 bg-transparent p-1 transition-colors duration-200"
+                  className="aspect-square rounded-full border-2 bg-transparent p-1 transition-colors duration-200 max-sm:size-11 max-sm:p-[3px]"
                   style={{ borderColor: i === finish ? "var(--color-ink)" : "oklch(0.19 0.015 45 / 0.14)" }}
                 >
                   <span className="block size-full rounded-full" style={{ background: s.swatch }} />
@@ -268,9 +300,9 @@ export function Sink() {
             </div>
           </div>
 
-          <dl className="flex flex-col border-t border-ink/15 text-[15px]">
+          <dl className="flex flex-col border-t border-ink/15 text-[14px] sm:text-[15px]">
             {t.sink.specs.map(([k, v]) => (
-              <div key={k} className="flex justify-between gap-4 border-b border-ink/15 py-2.5">
+              <div key={k} className="flex justify-between gap-4 border-b border-ink/15 py-2 sm:py-2.5">
                 <dt className="text-ink/78">{k}</dt>
                 <dd className="num text-right font-semibold">{v}</dd>
               </div>
@@ -288,19 +320,23 @@ export function Sink() {
             </p>
             <a
               href="#showrooms"
-              className="rounded-full bg-signal px-7 py-4 text-[16px] font-bold text-ink transition-transform duration-300 ease-[var(--ease-out-quart)] hover:-translate-y-0.5"
+              className="rounded-full bg-signal px-7 py-4 text-[16px] font-bold max-sm:px-5 max-sm:py-3 max-sm:text-[15px] text-ink transition-transform duration-300 ease-[var(--ease-out-quart)] hover:-translate-y-0.5"
             >
               {t.common.requestQuote}
             </a>
           </div>
         </motion.div>
+        </div>
+
+        {/* Phones: the scroll the words need to pass under the band while the stage holds. */}
+        <div aria-hidden className="hidden stage:block stage:h-[var(--stage-run)]" />
 
         {/* Empty scroll that keeps the sticky sink window on screen after the words have gone. */}
         <div
           ref={outro}
           data-station="sink-dive"
           aria-hidden
-          className="hidden h-[130vh] world:block motion-reduce:hidden lg:col-start-1 lg:row-start-3"
+          className="hidden h-[130vh] world:block motion-reduce:hidden lg:col-start-1 lg:row-start-3 side:col-start-1"
         />
       </div>
     </section>
@@ -329,14 +365,14 @@ function Feature({
         </span>
         <div className="flex flex-col gap-1">
           <motion.span
-            className="wide text-[19px] leading-tight font-bold tracking-[-0.02em]"
+            className="wide text-[16px] leading-tight sm:text-[19px] font-bold tracking-[-0.02em]"
             initial={false}
             animate={{ x: hot ? 8 : 0 }}
             transition={{ duration: 0.5, ease: EXPO }}
           >
             {ft.title}
           </motion.span>
-          <span className="max-w-[44ch] text-[15px] leading-[1.45] text-ink/75">{ft.body}</span>
+          <span className="max-w-[44ch] text-[14px] leading-[1.45] text-ink/75 sm:text-[15px]">{ft.body}</span>
         </div>
       </div>
     </li>
@@ -369,12 +405,12 @@ function Console({
     <div
       role="group"
       aria-label={t.sink.keysLabel}
-      className="flex flex-wrap items-center gap-3 rounded-[14px] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-7px_0_rgba(0,0,0,0.38),0_22px_44px_rgba(40,30,20,0.28),0_2px_0_#0b0c0e] [background:linear-gradient(180deg,oklch(0.42_0.01_255)_0%,oklch(0.31_0.01_255)_34%,oklch(0.23_0.01_255)_100%)] sm:gap-4 sm:p-4"
+      className="flex flex-wrap items-center gap-3 rounded-[14px] p-3 max-[480px]:grid max-[480px]:grid-cols-[1fr_auto] max-[480px]:gap-2.5 max-[480px]:p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-7px_0_rgba(0,0,0,0.38),0_22px_44px_rgba(40,30,20,0.28),0_2px_0_#0b0c0e] [background:linear-gradient(180deg,oklch(0.42_0.01_255)_0%,oklch(0.31_0.01_255)_34%,oklch(0.23_0.01_255)_100%)] sm:gap-4 sm:p-4"
     >
-      <div className="flex h-[76px] min-w-[104px] shrink-0 flex-col justify-center gap-1.5 rounded-[6px] bg-[oklch(0.15_0.008_255)] px-4 shadow-[inset_0_2px_7px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.09)] max-[420px]:w-full">
+      <div className="flex h-[76px] min-w-[104px] shrink-0 flex-col justify-center gap-1.5 rounded-[6px] bg-[oklch(0.15_0.008_255)] px-4 shadow-[inset_0_2px_7px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.09)] max-[480px]:h-14 max-[480px]:min-w-0 max-[480px]:gap-1">
         <div
           aria-hidden
-          className="narrow num flex items-baseline gap-1 text-[40px] leading-none font-semibold text-signal transition-opacity duration-300 [text-shadow:0_0_14px_oklch(0.65_0.205_38/0.7)]"
+          className="narrow num flex items-baseline gap-1 text-[40px] leading-none font-semibold text-signal max-[480px]:text-[28px] transition-opacity duration-300 [text-shadow:0_0_14px_oklch(0.65_0.205_38/0.7)]"
           style={{ opacity: hot ? 1 : 0.35 }}
         >
           <span>{temp}</span>
@@ -385,7 +421,7 @@ function Console({
         </div>
       </div>
 
-      <div className="min-w-[200px] flex-1">
+      <div className="min-w-[200px] flex-1 max-[480px]:order-last max-[480px]:col-span-2 max-[480px]:min-w-0">
         <div className="grid grid-cols-4 gap-[3px] px-[3px]">
           {OUTLETS.map((o) => (
             <div key={o.id} aria-hidden className="flex h-3 items-end justify-center" style={{ color: on[o.id] ? "#f3efe8" : "#7d7f83" }}>
@@ -411,7 +447,7 @@ function Console({
                 animate={{ y: down ? 4 : 0, boxShadow: down ? KEY_DOWN : KEY_UP }}
                 whileTap={{ y: 5, boxShadow: KEY_DOWN }}
                 transition={{ duration: 0.15, ease: "easeOut" }}
-                className="flex h-[58px] cursor-pointer flex-col items-center justify-end rounded-[3px_3px_8px_8px] border-0 pb-[9px] [background:linear-gradient(180deg,#fff_0%,#f0f0ef_62%,#d6d6d4_100%)] focus-visible:outline-signal"
+                className="flex h-[58px] cursor-pointer flex-col items-center justify-end rounded-[3px_3px_8px_8px] border-0 pb-[9px] max-sm:h-11 max-sm:pb-[7px] [background:linear-gradient(180deg,#fff_0%,#f0f0ef_62%,#d6d6d4_100%)] focus-visible:outline-signal"
               >
                 <span
                   className="h-[3px] w-4 rounded-sm"
@@ -437,7 +473,7 @@ function Console({
         </div>
       </div>
 
-      <div className="flex shrink-0 gap-3 max-[420px]:w-full max-[420px]:justify-center">
+      <div className="flex shrink-0 gap-3 max-[480px]:gap-2">
         <TempKnob value={temp} onChange={setTemp} />
         <Knob label={t.sink.drain} angle={plug ? 90 : 0}>
           <button
@@ -458,8 +494,8 @@ function Console({
 /** Round metal knob with a vermilion mark at `angle` degrees (0 is twelve o'clock). */
 function Knob({ label, angle, children }: { label: string; angle: number; children: ReactNode }) {
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="relative size-[52px] rounded-full shadow-[0_4px_0_#0b0c0e,0_8px_14px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.35)] [background:radial-gradient(circle_at_38%_30%,#a3a6ab,#55585d_55%,#2e3034_100%)]">
+    <div className="flex flex-col items-center gap-2 max-sm:gap-1">
+      <div className="relative size-[52px] max-sm:size-11 rounded-full shadow-[0_4px_0_#0b0c0e,0_8px_14px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.35)] [background:radial-gradient(circle_at_38%_30%,#a3a6ab,#55585d_55%,#2e3034_100%)]">
         <motion.span
           aria-hidden
           className="pointer-events-none absolute inset-0"

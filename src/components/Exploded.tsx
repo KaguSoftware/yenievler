@@ -17,13 +17,19 @@ export function Exploded() {
       aria-label={t.exploded.aria}
       className="relative bg-gun text-paper world:h-[440vh] world:bg-transparent motion-reduce:world:h-[100svh]"
     >
-      <div className="noworld:static noworld:h-auto noworld:min-h-0 noworld:overflow-visible noworld:px-[var(--pad)] noworld:py-[clamp(64px,9vw,120px)] sticky top-0 h-[100svh] min-h-[620px] overflow-hidden">
+      <div className="noworld:static noworld:h-auto noworld:min-h-0 noworld:overflow-visible noworld:px-[var(--pad)] noworld:py-[clamp(64px,9vw,120px)] sticky top-0 h-[100svh] min-h-[620px] overflow-hidden short:min-h-0!">
         <div data-world-caption="" className="noworld:static noworld:opacity-100">
+          {/* Portrait screens centre the head under the title, so its arm runs up through the words.
+              A wash of the page colour (world.ts keeps --bg current) lets the arm dissolve before it. */}
+          <div
+            aria-hidden
+            className="noworld:hidden pointer-events-none absolute inset-x-0 top-0 hidden h-[clamp(220px,36svh,340px)] bg-[linear-gradient(to_bottom,var(--bg)_58%,transparent)] stack:block"
+          />
           <Reveal className="pointer-events-none absolute top-[clamp(28px,6vh,64px)] left-[var(--pad)] max-w-[min(100%,720px)] noworld:static">
-            <h2 className="display text-[clamp(40px,5.4vw,92px)]">
+            <h2 className="display text-[clamp(34px,5.4vw,92px)]">
               {t.exploded.titleA} <span className="text-signal">{t.exploded.titleB}</span>
             </h2>
-            <p className="mt-4 max-w-[26ch] text-[17px] leading-[1.4] text-paper/75">
+            <p className="mt-4 max-w-[26ch] text-[15px] leading-[1.4] sm:text-[17px] text-paper/75">
               {t.exploded.lede}
             </p>
           </Reveal>

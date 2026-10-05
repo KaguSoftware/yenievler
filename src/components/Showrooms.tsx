@@ -17,13 +17,13 @@ export function Showrooms() {
     <section
       id="showrooms"
       data-station="rooms"
-      className="bg-signal px-[var(--pad)] py-[clamp(80px,11vw,160px)] text-ink-deep world:bg-transparent"
+      className="bg-signal px-[var(--pad)] py-[clamp(56px,11vw,160px)] text-ink-deep world:bg-transparent"
     >
       <Reveal className="flex flex-wrap items-end justify-between gap-x-12 gap-y-6">
         <h2 className="display text-[clamp(40px,14vw,56px)] text-paper sm:text-[clamp(56px,9vw,152px)]">
           {t.showrooms.title}
         </h2>
-        <p className="max-w-[30ch] text-[18px] leading-[1.4] font-medium">
+        <p className="max-w-[30ch] text-[15px] leading-[1.4] font-medium sm:text-[18px]">
           {t.showrooms.lede}
         </p>
       </Reveal>
@@ -76,16 +76,16 @@ function Row({ room: r, i }: { room: Room; i: number }) {
           transition={t}
         />
         <motion.span
-          className="display text-[clamp(32px,10.5vw,44px)] sm:text-[clamp(44px,8vw,64px)] lg:text-[clamp(44px,5.4vw,88px)]"
+          className="display text-[clamp(28px,9vw,44px)] sm:text-[clamp(44px,8vw,64px)] lg:text-[clamp(44px,5.4vw,88px)]"
           initial={false}
           animate={{ x: hov ? 12 : 0 }}
           transition={t}
         >
           {r.city}
         </motion.span>
-        <span className="text-[17px] font-medium">{r.where}</span>
-        <span className="num text-[17px] font-medium">{r.hours}</span>
-        <span className="text-[17px] font-bold lg:text-right">
+        <span className="text-[15px] font-medium sm:text-[17px]">{r.where}</span>
+        <span className="num text-[15px] font-medium sm:text-[17px]">{r.hours}</span>
+        <span className="text-[15px] font-bold sm:text-[17px] lg:text-right">
           {copy.showrooms.book}{" "}
           <motion.span
             className="inline-block"

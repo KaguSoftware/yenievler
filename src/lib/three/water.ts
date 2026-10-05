@@ -129,10 +129,14 @@ export function buildWater(density = 1): Water {
   let cur = new Float32Array(GRID * GRID);
   let prev = new Float32Array(GRID * GRID);
   const pa = geo.attributes.position.array as Float32Array;
+  const na = geo.attributes.normal.array as Float32Array;
+  /** The surface has settled flat: nothing to step or upload until something touches it. */
+  let calm = true;
   const impulse = (x: number, z: number, a: number) => {
     const ix = Math.round((x + SIZE / 2) / STEP);
     const iz = Math.round((z + SIZE / 2) / STEP);
     if (ix < 2 || iz < 2 || ix > GRID - 3 || iz > GRID - 3) return;
+    calm = false;
     const i = iz * GRID + ix;
     cur[i] += a;
     cur[i - 1] += a * 0.25;
@@ -151,6 +155,34 @@ export function buildWater(density = 1): Water {
     const t = cur;
     cur = prev;
     prev = t;
+  };
+  /**
+   * Heights into the mesh, normals straight from the grid by central differences (a heightfield's
+   * normal is (-dh/dx, 1, -dh/dz)), far cheaper than computeVertexNormals over every triangle.
+   * The border rows never move, so their normals stay straight up. Returns the largest height.
+   */
+  const writeSurface = (amp: number) => {
+    let peak = 0;
+    for (let i = 0; i < GRID * GRID; i++) {
+      const h = cur[i];
+      pa[i * 3 + 1] = h * amp;
+      if (h > peak) peak = h;
+      else if (-h > peak) peak = -h;
+    }
+    const k = 2 * STEP;
+    for (let z = 1; z < GRID - 1; z++)
+      for (let x = 1; x < GRID - 1; x++) {
+        const i = z * GRID + x;
+        const nx = -(pa[(i + 1) * 3 + 1] - pa[(i - 1) * 3 + 1]);
+        const nz = -(pa[(i + GRID) * 3 + 1] - pa[(i - GRID) * 3 + 1]);
+        const inv = 1 / Math.sqrt(nx * nx + k * k + nz * nz);
+        na[i * 3] = nx * inv;
+        na[i * 3 + 1] = k * inv;
+        na[i * 3 + 2] = nz * inv;
+      }
+    geo.attributes.position.needsUpdate = true;
+    geo.attributes.normal.needsUpdate = true;
+    return peak;
   };
 
   /* ----------------------------------------------------------------- drops */
@@ -243,6 +275,7 @@ export function buildWater(density = 1): Water {
     sv[j * 3] = Math.cos(ang) * h;
     sv[j * 3 + 1] = up * (0.6 + Math.random());
     sv[j * 3 + 2] = Math.sin(ang) * h;
+    if (!sl[j]) splashLive++;
     sl[j] = 1;
   };
   const splashDir = (x: number, z: number, gy: number, ang: number, up: number, h: number) => {
@@ -254,6 +287,7 @@ export function buildWater(density = 1): Water {
     sv[j * 3] = Math.cos(ang) * h;
     sv[j * 3 + 1] = up;
     sv[j * 3 + 2] = Math.sin(ang) * h;
+    if (!sl[j]) splashLive++;
     sl[j] = 1;
   };
 
@@ -267,6 +301,9 @@ export function buildWater(density = 1): Water {
   let shown = false;
   let seeded = false;
   let fieldAcc = 0;
+  /** Drops and splashes in the air after the last frame (0 means their loops are skipped). */
+  let dropsLive = 0;
+  let splashLive = 0;
   const clip = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
   const scatter = (colTarget: number, spillTarget: number, fieldTarget: number) => {
@@ -313,31 +350,30 @@ export function buildWater(density = 1): Water {
     if (f.reduced) {
       // Still water: lay the drops out once per change, no integration, no flying.
       const key = colTarget * 1e6 + spillTarget * 1e3 + fieldTarget + Math.round(emitY * 10) * 0.001;
+      // Only rewritten when the layout changes.
       if (key !== frozenFor) {
         frozenFor = key;
         scatter(colTarget, spillTarget, fieldTarget);
-      }
-      for (let i = 0; i < N; i++) {
-        const o = i * 6;
-        const k = i * 3;
-        if (!alive[i]) {
-          lp[o + 1] = lp[o + 4] = -100;
-          continue;
+        for (let i = 0; i < N; i++) {
+          const o = i * 6;
+          const k = i * 3;
+          if (!alive[i]) {
+            lp[o + 1] = lp[o + 4] = -100;
+            continue;
+          }
+          lp[o] = lp[o + 3] = dp[k];
+          lp[o + 1] = dp[k + 1];
+          lp[o + 2] = lp[o + 5] = dp[k + 2];
+          lp[o + 4] = dp[k + 1] - dv[i] * 0.02;
         }
-        lp[o] = lp[o + 3] = dp[k];
-        lp[o + 1] = dp[k + 1];
-        lp[o + 2] = lp[o + 5] = dp[k + 2];
-        lp[o + 4] = dp[k + 1] - dv[i] * 0.02;
+        lineGeo.attributes.position.needsUpdate = true;
       }
-      lineGeo.attributes.position.needsUpdate = true;
       if (!seeded && shown) {
         seeded = true;
         for (let n = 0; n < 14; n++)
           impulse((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6, -0.5);
         for (let n = 0; n < 60; n++) stepField();
-        for (let i = 0; i < GRID * GRID; i++) pa[i * 3 + 1] = cur[i] * s[C.amp];
-        geo.attributes.position.needsUpdate = true;
-        geo.computeVertexNormals();
+        writeSurface(s[C.amp]);
       }
       driveFloor(f, 0);
       return;
@@ -351,6 +387,7 @@ export function buildWater(density = 1): Water {
       if (!alive[i]) {
         spawn(i);
         revive0 -= 1;
+        dropsLive++;
       }
     if (revive0 > colTarget) revive0 = colTarget;
     reviveS += spillTarget * dt * 1.6;
@@ -358,6 +395,7 @@ export function buildWater(density = 1): Water {
       if (!alive[i]) {
         spawn(i);
         reviveS -= 1;
+        dropsLive++;
       }
     if (reviveS > spillTarget) reviveS = spillTarget;
     reviveF += fieldTarget * dt * 1.6;
@@ -365,18 +403,18 @@ export function buildWater(density = 1): Water {
       if (!alive[i]) {
         spawn(i);
         reviveF -= 1;
+        dropsLive++;
       }
     if (reviveF > fieldTarget) reviveF = fieldTarget;
 
     const sim = shown;
     const gMul = F.s;
-    for (let i = 0; i < N; i++) {
+    // No drop in the air: dead ones were parked as they landed, so there is nothing to integrate or upload.
+    let live = 0;
+    for (let i = 0; dropsLive && i < N; i++) {
       const k = i * 3;
       const o = i * 6;
-      if (!alive[i]) {
-        lp[o + 1] = lp[o + 4] = -100;
-        continue;
-      }
+      if (!alive[i]) continue;
       const py = dp[k + 1];
       dv[i] -= 9.8 * dt * gMul;
       dp[k + 1] += dv[i] * dt * gMul;
@@ -427,10 +465,14 @@ export function buildWater(density = 1): Water {
       lp[o + 3] = dp[k];
       lp[o + 4] = dp[k + 1] - dv[i] * 0.02 * gMul;
       lp[o + 5] = dp[k + 2];
+      live++;
     }
-    lineGeo.attributes.position.needsUpdate = true;
+    if (dropsLive) lineGeo.attributes.position.needsUpdate = true;
+    dropsLive = live;
+    lines.visible = live > 0;
 
-    for (let j = 0; j < SPLASHES; j++) {
+    let sLive = 0;
+    for (let j = 0; splashLive && j < SPLASHES; j++) {
       if (!sl[j]) continue;
       const k = j * 3;
       sv[k + 1] -= 9.8 * dt;
@@ -448,12 +490,16 @@ export function buildWater(density = 1): Water {
         } else {
           sl[j] = 0;
           sp[k + 1] = -500;
+          continue;
         }
       }
+      sLive++;
     }
-    spGeo.attributes.position.needsUpdate = true;
+    if (splashLive) spGeo.attributes.position.needsUpdate = true;
+    splashLive = sLive;
+    splashes.visible = sLive > 0;
 
-    if (sim) {
+    if (sim && !calm) {
       // The surface runs at a fixed 60 Hz whatever the frame rate, so ripples look the same everywhere.
       fieldAcc += dt;
       let steps = 0;
@@ -463,11 +509,12 @@ export function buildWater(density = 1): Water {
         steps++;
       }
       if (fieldAcc > 1 / 60) fieldAcc = 0;
-      if (steps) {
-        const amp = s[C.amp];
-        for (let i = 0; i < GRID * GRID; i++) pa[i * 3 + 1] = cur[i] * amp;
-        geo.attributes.position.needsUpdate = true;
-        geo.computeVertexNormals();
+      if (steps && writeSurface(s[C.amp]) < 1e-5) {
+        // Every ripple has died out: settle the surface exactly flat and stop stepping it.
+        cur.fill(0);
+        prev.fill(0);
+        writeSurface(s[C.amp]);
+        calm = true;
       }
     }
     driveFloor(f, colTarget);

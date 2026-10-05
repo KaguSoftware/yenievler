@@ -36,5 +36,7 @@ export function World() {
     };
   }, []);
 
-  return <div ref={host} className="pointer-events-none fixed inset-0 z-0" />;
+  // As tall as the large viewport, not the visible one: a phone's toolbar sliding away on scroll then
+  // uncovers more canvas instead of resizing it (a resize clears the frame and re-lays the timeline).
+  return <div ref={host} className="pointer-events-none fixed inset-x-0 top-0 z-0 h-lvh" />;
 }

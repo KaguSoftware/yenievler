@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { damp, domRef, makeEnv, reducedMotion } from "./common";
+import { damp, domRef, makeEnv, reducedMotion, smooth } from "./common";
 import { buildBasin } from "./basin";
 import { buildExploded } from "./exploded";
 import { buildFx } from "./fx";
@@ -41,6 +41,15 @@ const root = () => document.documentElement;
 const isMobile = (w: number, h: number) => w < 640 || w / h < 1;
 
 /**
+ * The mobile keys are framed on a 390 x 844 phone. A narrower screen widens the lens until the
+ * same width of world fits across it; a wider one keeps the keyed lens and simply sees more.
+ */
+const MOBILE_ASPECT = 390 / 844;
+
+/** Touch screens: no hover parallax, a lighter pixel budget, and the toolbar's resizes ignored. */
+const coarse = () => window.matchMedia("(pointer: coarse)").matches;
+
+/**
  * One renderer, one scene, one loop. The camera descends a single vertical axis while the
  * document scrolls over the canvas; everything the camera passes is a stage on that axis.
  */
@@ -57,7 +66,12 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
     fail();
     return { dispose() {} };
   }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const touch = coarse();
+  // Phones have 3x screens and a fraction of the GPU. Start lower there; the loop steps down further
+  // if frames run long (see `budget` below).
+  const maxPR = Math.min(window.devicePixelRatio, touch ? 1.75 : 2);
+  let pixelRatio = maxPR;
+  renderer.setPixelRatio(pixelRatio);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true;
@@ -118,11 +132,15 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
   let vw = 1;
   let vh = 1;
   let layoutDirty = true;
+  let lastW = 0;
+  let lastH = 0;
 
   const measure = () => {
     layoutDirty = false;
     vw = el.clientWidth || window.innerWidth;
     vh = el.clientHeight || window.innerHeight;
+    lastW = window.innerWidth;
+    lastH = window.innerHeight;
     const pr = renderer.getPixelRatio();
     renderer.setSize(vw, vh, false);
     cam.aspect = vw / vh;
@@ -130,7 +148,9 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
     mobile = isMobile(vw, vh);
     tl = mobile ? tls.mobile : tls.desktop;
     const sy = window.scrollY;
-    geom.vh = window.innerHeight;
+    // The host is as tall as the large viewport (World.tsx), so this does not move when a phone's
+    // toolbar slides in and out, and neither do the keys anchored in viewport heights.
+    geom.vh = vh;
     geom.maxScroll = Math.max(1, root().scrollHeight - window.innerHeight);
     const rects: Geometry["rects"] = {};
     document.querySelectorAll<HTMLElement>("[data-station]").forEach((n) => {
@@ -144,10 +164,17 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
   const markDirty = () => {
     layoutDirty = true;
   };
+  // On a phone, scrolling shows and hides the browser toolbar, which resizes the window by its height
+  // alone. Re-resolving the timeline then would nudge every key mid-scroll, so only a real change
+  // (rotation, split screen, a desktop window drag) counts.
+  const onResize = () => {
+    if (touch && window.innerWidth === lastW && Math.abs(window.innerHeight - lastH) < 160) return;
+    layoutDirty = true;
+  };
   const ro = new ResizeObserver(markDirty);
   ro.observe(el);
   ro.observe(document.body);
-  window.addEventListener("resize", markDirty);
+  window.addEventListener("resize", onResize);
   window.addEventListener("load", markDirty);
   document.fonts?.ready.then(markDirty);
 
@@ -156,8 +183,11 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
   let mx = 0;
   let my = 0;
   const onMove = (e: PointerEvent) => {
-    mx = (e.clientX / window.innerWidth) * 2 - 1;
-    my = (e.clientY / window.innerHeight) * 2 - 1;
+    // A finger is not a cursor: a tap on the mixer must not swing the hero camera to that corner.
+    if (e.pointerType === "mouse") {
+      mx = (e.clientX / window.innerWidth) * 2 - 1;
+      my = (e.clientY / window.innerHeight) * 2 - 1;
+    }
     ptr.x = e.clientX;
     ptr.y = e.clientY;
     ptr.ndcX = (e.clientX / vw) * 2 - 1;
@@ -235,6 +265,26 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
     }
   };
 
+  // Frame budget: if the last two seconds averaged under ~45 fps, render fewer pixels (down to 1x).
+  // It only ever steps down, so the resolution never pumps up and down while someone scrolls.
+  let slowT = 0;
+  let slowN = 0;
+  let slowSum = 0;
+  const budget = (dt: number) => {
+    // The first seconds compile shaders and decode textures; they say nothing about the device.
+    if (first || time < 3 || pixelRatio <= 1) return;
+    slowT += dt;
+    slowSum += dt;
+    slowN++;
+    if (slowT < 2) return;
+    const avg = slowSum / slowN;
+    slowT = slowSum = slowN = 0;
+    if (avg < 1 / 45) return;
+    pixelRatio = Math.max(1, Math.round((pixelRatio - 0.25) * 4) / 4);
+    renderer.setPixelRatio(pixelRatio);
+    layoutDirty = true;
+  };
+
   const loop = (now: number) => {
     raf = requestAnimationFrame(loop);
     const dt = Math.min((now - lastT) / 1000, 1 / 30);
@@ -284,6 +334,13 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
     const pe = pin > 0.001 ? (S[C.sinkOn] > 0.5 ? pinSinkEl() : pinEl()) : null;
     const pr = pe ? pe.getBoundingClientRect() : null;
     let fovNow = S[C.fov];
+    // Phones narrower than the one the mobile keys were framed on: keep the same width of world in
+    // shot. A pinned window has its own shape, so this hands over to the pin as it takes hold.
+    const fit = mobile ? Math.max(1, MOBILE_ASPECT / (vw / vh)) : 1;
+    if (fit > 1) {
+      const t = Math.tan((fovNow * Math.PI) / 360) * (1 + (fit - 1) * (1 - pin));
+      fovNow = (2 * Math.atan(t) * 180) / Math.PI;
+    }
     if (pr && pr.height > 1) {
       const k = 1 + (pr.height / vh - 1) * pin;
       fovNow = (2 * Math.atan(Math.tan((fovNow * Math.PI) / 360) * k) * 180) / Math.PI;
@@ -306,6 +363,10 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
     frame.mobile = mobile;
     frame.speed = speed;
 
+    // While the veil hides the canvas completely there is nothing to see: no stage steps, nothing is
+    // drawn. The water picks up where it stopped when the veil lifts.
+    const blind = !reduced && !first && S[C.veil] > 0.999;
+
     // Skip every stage the camera cannot see: hidden groups are neither updated nor drawn.
     hero.group.visible = S[C.head] > 0.5;
     exploded.group.visible = S[C.stack] > 0.5;
@@ -315,14 +376,16 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
     exploded.always?.(frame);
     sink.always?.(frame);
     basin.always?.(frame);
-    if (exploded.group.visible) exploded.update(frame);
-    if (hero.group.visible) hero.update(frame);
-    else water.hand.on = false;
-    if (basin.group.visible) basin.update(frame);
-    if (sink.group.visible) sink.update(frame);
-    jets.update(frame);
-    water.update(frame);
-    if (fx.group.visible) fx.update(frame);
+    if (!hero.group.visible || blind) water.hand.on = false;
+    if (!blind) {
+      if (exploded.group.visible) exploded.update(frame);
+      if (hero.group.visible) hero.update(frame);
+      if (basin.group.visible) basin.update(frame);
+      if (sink.group.visible) sink.update(frame);
+      jets.update(frame);
+      water.update(frame);
+      if (fx.group.visible) fx.update(frame);
+    }
     ptr.moved = false;
 
     // Off-axis framing: shift the principal point so the look target lands on the window's centre.
@@ -362,13 +425,16 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
       }
     }
 
-    if (water.floorShown()) {
-      const fxOn = fx.group.visible;
-      fx.group.visible = false;
-      water.reflect(renderer, scene, cam, look);
-      fx.group.visible = fxOn;
+    if (!blind) {
+      if (water.floorShown()) {
+        const fxOn = fx.group.visible;
+        fx.group.visible = false;
+        water.reflect(renderer, scene, cam, look);
+        fx.group.visible = fxOn;
+      }
+      renderer.render(scene, cam);
+      budget(dt);
     }
-    renderer.render(scene, cam);
 
     probe.p = Ps;
     probe.target = target;
@@ -395,14 +461,121 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
     }
   };
 
+  /* ------------------------------------------------------- shader warm-up */
+  // three.js builds one program per material for each set of lamps (and shadow-casting lamps) it is
+  // drawn under, and every stretch of the fall has its own set: the hero's spot, the sink's lamps and
+  // shadow, the basin's. Left alone, the first frame of each stretch stalls on those compiles. So find
+  // every set the timeline passes through and compile it ahead of time: the one on screen before the
+  // first frame, the others while the page is idle, nearest first. The floor's reflection pass draws
+  // into a render target with a clip plane, which is another variant, so that is warmed as well.
+  interface LightSet {
+    hero: boolean;
+    stack: boolean;
+    basin: boolean;
+    sink: boolean;
+    basinCast: boolean;
+    sinkCast: boolean;
+    fx: boolean;
+    floor: boolean;
+    p: number;
+  }
+  const lightSet = (T: Float64Array, p: number): LightSet => {
+    const basinOn = T[C.basin] > 0.01;
+    const sinkOn = T[C.sinkOn] > 0.01;
+    return {
+      hero: T[C.head] > 0.5,
+      stack: T[C.stack] > 0.5,
+      basin: basinOn,
+      sink: sinkOn,
+      // The same rules basin.ts and sink.ts use to switch their shadow lamps.
+      basinCast: basinOn && smooth(0.02, 0.6, T[C.basin]) > 0.05 && T[C.sink] < 0.9,
+      sinkCast: sinkOn && T[C.sinkOn] > 0.5 && T[C.basin] < 0.05,
+      fx: T[C.fx] > 0.01 && !reduced,
+      floor: T[C.floor] > 0.01,
+      p,
+    };
+  };
+  const setKey = (l: LightSet) =>
+    [l.hero, l.stack, l.basin, l.sink, l.basinCast, l.sinkCast, l.fx, l.floor].map(Number).join("");
+  const warmRT = new THREE.WebGLRenderTarget(2, 2, { type: THREE.HalfFloatType });
+  const warmClip = [new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)];
+  /** Compile one set. Stages outside it are detached for the call so their materials are skipped. */
+  const warm = (l: LightSet, sync: boolean): Promise<unknown> => {
+    const on = [true, l.stack, l.hero, l.basin, l.sink, true, l.fx];
+    const vis = stages.map((st) => st.group.visible);
+    stages.forEach((st, i) => {
+      st.group.visible = on[i];
+      if (!on[i]) scene.remove(st.group);
+    });
+    basin.prewarm(l.basinCast);
+    sink.prewarm(l.sinkCast);
+    const jobs: Promise<unknown>[] = [];
+    const run = () => {
+      if (sync) renderer.compile(scene, cam);
+      else jobs.push(renderer.compileAsync(scene, cam));
+    };
+    try {
+      run();
+      if (l.floor) {
+        renderer.setRenderTarget(warmRT);
+        renderer.clippingPlanes = warmClip;
+        try {
+          run();
+        } finally {
+          renderer.clippingPlanes = [];
+          renderer.setRenderTarget(null);
+        }
+      }
+    } finally {
+      // Back exactly as it was, in the original order; the next update() puts the shadow lamps back.
+      stages.forEach((st) => scene.remove(st.group));
+      stages.forEach((st, i) => {
+        scene.add(st.group);
+        st.group.visible = vis[i];
+      });
+    }
+    return Promise.all(jobs);
+  };
+  let warmDead = false;
+  // Safari has no requestIdleCallback.
+  const whenIdle = (f: () => void) =>
+    typeof window.requestIdleCallback === "function" ? window.requestIdleCallback(f, { timeout: 2000 }) : setTimeout(f, 120);
+  const warmAll = () => {
+    const T = new Float64Array(N_CH);
+    const p0 = Math.min(1, Math.max(0, window.scrollY / geom.maxScroll));
+    sampleTimeline(tl, p0, T);
+    const now = lightSet(T, p0);
+    const seen = new Set([setKey(now)]);
+    const rest: LightSet[] = [];
+    for (let i = 0; i <= 800; i++) {
+      sampleTimeline(tl, i / 800, T);
+      const l = lightSet(T, i / 800);
+      const k = setKey(l);
+      if (!seen.has(k)) {
+        seen.add(k);
+        rest.push(l);
+      }
+    }
+    rest.sort((a, b) => Math.abs(a.p - p0) - Math.abs(b.p - p0));
+    warm(now, true);
+    const next = () => {
+      const l = rest.shift();
+      if (warmDead || !l) {
+        if (!warmDead) warmRT.dispose();
+        return;
+      }
+      whenIdle(() => {
+        if (warmDead) return;
+        warm(l, false).then(next, (e) => console.error(e));
+      });
+    };
+    next();
+  };
+
   /* ------------------------------------------------------------------- start */
   measure();
   try {
-    // Warm every shader (shadows included) before the first frame so nothing hitches mid-scroll.
-    stages.forEach((st) => (st.group.visible = true));
-    basin.prewarm();
-    sink.prewarm();
-    renderer.compile(scene, cam);
+    warmAll();
   } catch (e) {
     console.error(e);
   }
@@ -417,8 +590,10 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
   return {
     dispose() {
       cancelAnimationFrame(raf);
+      warmDead = true;
+      warmRT.dispose();
       ro.disconnect();
-      window.removeEventListener("resize", markDirty);
+      window.removeEventListener("resize", onResize);
       window.removeEventListener("load", markDirty);
       window.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerleave", onLeave);

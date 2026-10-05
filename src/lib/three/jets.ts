@@ -11,7 +11,8 @@ import type { Frame, Stage } from "./stage";
  *   jet.x0 = ...           // outlets can move (a pull-out tap)
  *
  * One shared set of buffers, one LineSegments, one Points, one instanced ring mesh: a handful of
- * draw calls however many jets exist. No per-frame allocation.
+ * draw calls however many jets exist. No per-frame allocation. With every outlet closed and the
+ * last drop landed, the update costs nothing and nothing is drawn.
  */
 
 const MAX_DROPS = 3200;
@@ -117,6 +118,7 @@ export function buildJets(): Jets {
     sv[j * 3] = Math.cos(a) * h;
     sv[j * 3 + 1] = up * (0.6 + Math.random());
     sv[j * 3 + 2] = Math.sin(a) * h;
+    if (!sl[j]) splashLive++;
     sl[j] = 1;
   };
 
@@ -128,6 +130,7 @@ export function buildJets(): Jets {
   const rage = new Float32Array(MAX_RINGS).fill(1);
   const rlive = new Uint8Array(MAX_RINGS);
   let ri = 0;
+  let ringsLive = 0;
   const ringGeo = new THREE.PlaneGeometry(1, 1);
   ringGeo.rotateX(-Math.PI / 2);
   const ageAttr = new THREE.InstancedBufferAttribute(rage, 1);
@@ -174,6 +177,7 @@ export function buildJets(): Jets {
     rz[j] = z;
     rmax[j] = r * (0.7 + Math.random() * 0.5);
     rage[j] = 0;
+    if (!rlive[j]) ringsLive++;
     rlive[j] = 1;
   };
 
@@ -207,6 +211,15 @@ export function buildJets(): Jets {
   };
 
   let frozenKey = "";
+  /** Live counts from the last frame: when all three are zero and no outlet is open there is nothing to do. */
+  let dropsLive = 0;
+  let splashLive = 0;
+  let idle = false;
+  const linePos = lineGeo.attributes.position as THREE.BufferAttribute;
+  // Park every ring once; afterwards only rings that change are rewritten.
+  sc.set(0, 0, 0);
+  m4.compose(ps.set(0, -1e4, 0), q, sc);
+  for (let r = 0; r < MAX_RINGS; r++) rings.setMatrixAt(r, m4);
 
   return {
     group,
@@ -270,111 +283,136 @@ export function buildJets(): Jets {
       }
 
       // Revive drops at a rate, so a tap that opens fills in instead of popping.
+      let open = false;
       for (const j of jets) {
         const target = Math.round(Math.max(0, Math.min(1, j.on)) * j.n);
+        if (target) open = true;
         j.rev += target * dt * 3;
         for (let i = j.i0; i < j.i0 + target && j.rev >= 1; i++)
           if (!alive[i]) {
             spawn(i, j);
             j.rev -= 1;
+            dropsLive++;
           }
         if (j.rev > target) j.rev = target;
       }
 
-      for (let i = 0; i < used; i++) {
-        if (!alive[i]) {
-          hide(i);
-          continue;
-        }
-        const j = jets[owner[i]];
-        const k = i * 3;
-        const prevY = dp[k + 1];
-        dv[k + 1] -= G * dt;
-        dp[k] += dv[k] * dt;
-        dp[k + 1] += dv[k + 1] * dt;
-        dp[k + 2] += dv[k + 2] * dt;
-        if (dp[k + 1] <= j.landY && prevY > j.landY) {
-          const x = dp[k];
-          const z = dp[k + 2];
-          const rr = Math.random();
-          const s = j.splash;
-          if (rr < 0.05) {
-            // a crown: a ring of droplets thrown up and out
-            const cn = 6 + ((Math.random() * 3) | 0);
-            const a0 = Math.random() * 6.283;
-            for (let c = 0; c < cn; c++) {
-              const jj = (spi = (spi + 1) % MAX_SPLASH);
-              sp[jj * 3] = x;
-              sp[jj * 3 + 1] = j.landY + 0.002;
-              sp[jj * 3 + 2] = z;
-              sg[jj] = j.landY;
-              const a = a0 + (c / cn) * 6.283;
-              sv[jj * 3] = Math.cos(a) * 0.32 * s;
-              sv[jj * 3 + 1] = (0.55 + Math.random() * 0.25) * s;
-              sv[jj * 3 + 2] = Math.sin(a) * 0.32 * s;
-              sl[jj] = 1;
+      // Everything closed and settled: skip the simulation and the draw calls until an outlet opens.
+      const settled = !open && dropsLive === 0 && splashLive === 0 && ringsLive === 0;
+      if (settled !== idle) {
+        idle = settled;
+        lines.visible = splashes.visible = !settled;
+        if (settled) rings.visible = false;
+      }
+      if (settled) return;
+
+      if (dropsLive) {
+        let n = 0;
+        for (let i = 0; i < used; i++) {
+          if (!alive[i]) continue;
+          const j = jets[owner[i]];
+          const k = i * 3;
+          const prevY = dp[k + 1];
+          dv[k + 1] -= G * dt;
+          dp[k] += dv[k] * dt;
+          dp[k + 1] += dv[k + 1] * dt;
+          dp[k + 2] += dv[k + 2] * dt;
+          if (dp[k + 1] <= j.landY && prevY > j.landY) {
+            const x = dp[k];
+            const z = dp[k + 2];
+            const rr = Math.random();
+            const s = j.splash;
+            if (rr < 0.05) {
+              // a crown: a ring of droplets thrown up and out
+              const cn = 6 + ((Math.random() * 3) | 0);
+              const a0 = Math.random() * 6.283;
+              for (let c = 0; c < cn; c++) {
+                const jj = (spi = (spi + 1) % MAX_SPLASH);
+                sp[jj * 3] = x;
+                sp[jj * 3 + 1] = j.landY + 0.002;
+                sp[jj * 3 + 2] = z;
+                sg[jj] = j.landY;
+                const a = a0 + (c / cn) * 6.283;
+                sv[jj * 3] = Math.cos(a) * 0.32 * s;
+                sv[jj * 3 + 1] = (0.55 + Math.random() * 0.25) * s;
+                sv[jj * 3 + 2] = Math.sin(a) * 0.32 * s;
+                if (!sl[jj]) splashLive++;
+                sl[jj] = 1;
+              }
+            } else if (rr < 0.6) {
+              const sn = 1 + ((Math.random() * 3) | 0);
+              for (let c = 0; c < sn; c++) splash(x, j.landY + 0.002, z, j.landY, 0.8 * s, 0.4 * s);
             }
-          } else if (rr < 0.6) {
-            const sn = 1 + ((Math.random() * 3) | 0);
-            for (let c = 0; c < sn; c++) splash(x, j.landY + 0.002, z, j.landY, 0.8 * s, 0.4 * s);
+            if (j.ringR > 0 && Math.random() < 0.22) ring(x, j.landY, z, j.ringR);
+            if (i - j.i0 < Math.round(Math.max(0, Math.min(1, j.on)) * j.n)) spawn(i, j);
+            else {
+              alive[i] = 0;
+              hide(i);
+              continue;
+            }
           }
-          if (j.ringR > 0 && Math.random() < 0.22) ring(x, j.landY, z, j.ringR);
-          if (i - j.i0 < Math.round(Math.max(0, Math.min(1, j.on)) * j.n)) spawn(i, j);
-          else {
-            alive[i] = 0;
-            hide(i);
-            continue;
-          }
+          n++;
+          writeLine(i, j.tail);
         }
-        writeLine(i, j.tail);
+        dropsLive = n;
+        // Only the slots jets own are ever written.
+        linePos.addUpdateRange(0, used * 6);
+        linePos.needsUpdate = true;
       }
-      lineGeo.attributes.position.needsUpdate = true;
 
-      for (let s = 0; s < MAX_SPLASH; s++) {
-        if (!sl[s]) continue;
-        const k = s * 3;
-        sv[k + 1] -= G * dt;
-        sp[k] += sv[k] * dt;
-        sp[k + 1] += sv[k + 1] * dt;
-        sp[k + 2] += sv[k + 2] * dt;
-        if (sp[k + 1] < sg[s]) {
-          if (sl[s] === 1 && sv[k + 1] < -0.5 && Math.random() < 0.25) {
-            sp[k + 1] = sg[s] + 0.001;
-            sv[k + 1] = -sv[k + 1] * 0.3;
-            sv[k] *= 0.6;
-            sv[k + 2] *= 0.6;
-            sl[s] = 2;
+      if (splashLive) {
+        let n = 0;
+        for (let s = 0; s < MAX_SPLASH; s++) {
+          if (!sl[s]) continue;
+          const k = s * 3;
+          sv[k + 1] -= G * dt;
+          sp[k] += sv[k] * dt;
+          sp[k + 1] += sv[k + 1] * dt;
+          sp[k + 2] += sv[k + 2] * dt;
+          if (sp[k + 1] < sg[s]) {
+            if (sl[s] === 1 && sv[k + 1] < -0.5 && Math.random() < 0.25) {
+              sp[k + 1] = sg[s] + 0.001;
+              sv[k + 1] = -sv[k + 1] * 0.3;
+              sv[k] *= 0.6;
+              sv[k + 2] *= 0.6;
+              sl[s] = 2;
+            } else {
+              sl[s] = 0;
+              sp[k + 1] = -1e4;
+              continue;
+            }
+          }
+          n++;
+        }
+        splashLive = n;
+        spGeo.attributes.position.needsUpdate = true;
+      }
+
+      if (ringsLive) {
+        let live = 0;
+        for (let r = 0; r < MAX_RINGS; r++) {
+          if (!rlive[r]) continue;
+          rage[r] += dt / 1.1;
+          if (rage[r] >= 1) {
+            // park a finished ring out of sight at zero scale, once
+            rlive[r] = 0;
+            rage[r] = 1;
+            sc.set(0, 0, 0);
+            m4.compose(ps.set(0, -1e4, 0), q, sc);
           } else {
-            sl[s] = 0;
-            sp[k + 1] = -1e4;
+            live++;
+            const d = rmax[r] * 2;
+            sc.set(d, 1, d);
+            m4.compose(ps.set(rx[r], ry[r] + 0.0015, rz[r]), q, sc);
           }
-        }
-      }
-      spGeo.attributes.position.needsUpdate = true;
-
-      let live = 0;
-      for (let r = 0; r < MAX_RINGS; r++) {
-        if (!rlive[r]) {
-          // park dead rings out of sight at zero scale
-          sc.set(0, 0, 0);
-          m4.compose(ps.set(0, -1e4, 0), q, sc);
           rings.setMatrixAt(r, m4);
-          continue;
         }
-        rage[r] += dt / 1.1;
-        if (rage[r] >= 1) {
-          rlive[r] = 0;
-          rage[r] = 1;
-        } else live++;
-        const d = rmax[r] * 2;
-        sc.set(d, 1, d);
-        m4.compose(ps.set(rx[r], ry[r] + 0.0015, rz[r]), q, sc);
-        rings.setMatrixAt(r, m4);
+        ringsLive = live;
+        rings.count = MAX_RINGS;
+        rings.instanceMatrix.needsUpdate = true;
+        ageAttr.needsUpdate = true;
       }
-      rings.count = MAX_RINGS;
-      rings.visible = live > 0;
-      rings.instanceMatrix.needsUpdate = true;
-      ageAttr.needsUpdate = true;
+      rings.visible = ringsLive > 0;
     },
     dispose() {
       lineGeo.dispose();

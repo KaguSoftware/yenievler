@@ -35,7 +35,7 @@ export function TechSheet() {
       data-station="tech"
       className="bg-gun px-[var(--pad)] pt-[clamp(40px,6vw,80px)] pb-[clamp(96px,13vw,200px)] text-paper world:bg-transparent"
     >
-      <p className="wide max-w-[24ch] text-[clamp(30px,4.6vw,76px)] leading-[1.04] font-bold tracking-[-0.03em] text-paper/90">
+      <p className="wide max-w-[24ch] text-[clamp(23px,4.6vw,76px)] max-sm:leading-[1.1] leading-[1.04] font-bold tracking-[-0.03em] text-paper/90">
         {COPY.map(([w, hl], i) => (
           <Word key={i} p={p} from={i / n} to={(i + 1.6) / n} hl={hl}>
             {w}

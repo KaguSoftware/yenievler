@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { nozzlePositions, softTex } from "./common";
+import { billboards, nozzlePositions, release, sharedSoftTex } from "./common";
 import { C, HEAD_R, HEAD_Y } from "./timeline";
 import type { BuildCtx, Frame, Stage } from "./stage";
 import type { Water } from "./water";
@@ -52,25 +52,32 @@ export function buildHero(ctx: BuildCtx, water: Water): Stage {
   spot.target.position.set(0, 0, 0);
   group.add(spot, spot.target);
 
-  const soft = softTex();
+  const soft = sharedSoftTex();
   const handSprite = new THREE.Sprite(
     new THREE.SpriteMaterial({ map: soft, transparent: true, opacity: 0, depthWrite: false, color: 0xfff6ee }),
   );
   handSprite.scale.set(1.1, 0.5, 1);
   group.add(handSprite);
 
-  const steam: THREE.Sprite[] = [];
-  const steamMats: THREE.SpriteMaterial[] = [];
-  for (let i = 0; i < 26; i++) {
-    const mt = new THREE.SpriteMaterial({ map: soft, transparent: true, opacity: 0, depthWrite: false, color: 0xffffff });
-    steamMats.push(mt);
-    const m = new THREE.Sprite(mt);
-    const s = 1.5 + Math.random() * 2.5;
-    m.scale.set(s, s, 1);
-    m.userData = { a: Math.random() * Math.PI * 2, r: Math.random() * 2.2, y: Math.random() * 4.5, sp: 0.15 + Math.random() * 0.25 };
-    group.add(m);
-    steam.push(m);
+  // Steam for the Mist key: one instanced draw for every puff, skipped entirely while it is clear.
+  const STEAM = 26;
+  const steam = billboards(STEAM, soft);
+  const sA = new Float32Array(STEAM);
+  const sR = new Float32Array(STEAM);
+  const sY = new Float32Array(STEAM);
+  const sSp = new Float32Array(STEAM);
+  for (let i = 0; i < STEAM; i++) {
+    const sz = 1.5 + Math.random() * 2.5;
+    steam.size[i * 2] = steam.size[i * 2 + 1] = sz;
+    sA[i] = Math.random() * Math.PI * 2;
+    sR[i] = Math.random() * 2.2;
+    sY[i] = Math.random() * 4.5;
+    sSp[i] = 0.15 + Math.random() * 0.25;
   }
+  // Left visible (at zero alpha) until the first update, so the start-up compile covers its shader.
+  steam.commit(true);
+  group.add(steam.mesh);
+  let steamMax = 0;
 
   const ray = new THREE.Raycaster();
 
@@ -110,17 +117,28 @@ export function buildHero(ctx: BuildCtx, water: Water): Stage {
       mt.opacity += ((water.hand.on && on ? 0.28 : 0) - mt.opacity) * Math.min(1, f.dt * 9);
 
       const steamAmt = on && f.flow === "mist" && !f.reduced ? 0.9 : 0;
-      for (const m of steam) {
-        const u = m.userData;
-        u.y += u.sp * f.dt;
-        u.a += f.dt * 0.05;
-        if (u.y > 5) {
-          u.y = 0;
-          u.r = Math.random() * 2.2;
+      // Puffs keep drifting only while some are showing or about to.
+      if (steamAmt > 0 || steamMax > 0.0005) {
+        const k = Math.min(1, f.dt * 3);
+        steamMax = 0;
+        for (let i = 0; i < STEAM; i++) {
+          sY[i] += sSp[i] * f.dt;
+          sA[i] += f.dt * 0.05;
+          if (sY[i] > 5) {
+            sY[i] = 0;
+            sR[i] = Math.random() * 2.2;
+          }
+          steam.pos[i * 3] = Math.cos(sA[i]) * sR[i];
+          steam.pos[i * 3 + 1] = ground + sY[i];
+          steam.pos[i * 3 + 2] = Math.sin(sA[i]) * sR[i];
+          const a = steam.alpha[i] + (steamAmt * 0.07 * Math.sin((Math.PI * sY[i]) / 5) - steam.alpha[i]) * k;
+          steam.alpha[i] = a;
+          if (a > steamMax) steamMax = a;
         }
-        m.position.set(Math.cos(u.a) * u.r, ground + u.y, Math.sin(u.a) * u.r);
-        m.material.opacity += (steamAmt * 0.07 * Math.sin((Math.PI * u.y) / 5) - m.material.opacity) * Math.min(1, f.dt * 3);
+        steam.commit();
       }
+      steam.mesh.visible = steamMax > 0.0005;
+      handSprite.visible = mt.opacity > 0.002;
     },
     dispose() {
       chrome.dispose();
@@ -133,9 +151,9 @@ export function buildHero(ctx: BuildCtx, water: Water): Stage {
       arm.geometry.dispose();
       collar.geometry.dispose();
       handSprite.material.dispose();
-      steamMats.forEach((m) => m.dispose());
+      steam.dispose();
       spot.dispose();
-      soft.dispose();
+      release("soft");
     },
   };
 }

@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { damp, domRef, smooth, softTex } from "./common";
+import { damp, domRef, smooth } from "./common";
 import { stoneTex } from "./stone";
 import { C } from "./timeline";
 import {
@@ -33,8 +33,8 @@ export interface SinkChannels {
 }
 
 export interface SinkStage extends Stage {
-  /** Switch the shadow light on once so its shader variants compile before the first frame. */
-  prewarm(): void;
+  /** Set the shadow lamp for a shader warm-up (update() sets it back from the timeline). */
+  prewarm(cast?: boolean): void;
 }
 
 /* ------------------------------------------------------------- dimensions */
@@ -81,8 +81,10 @@ const FINISH = [
 const COLD = new THREE.Color(0xd2e8f4);
 const HOT = new THREE.Color(0xf7dcc4);
 
-/** Below this viewport width the captions sit on the parts instead of beside them. */
-const COMPACT_W = 640;
+/** Phones, portrait tablets and short landscape screens get the small captions (title only). */
+const COMPACT_H = 560;
+/** Captions keep this far from the screen edge. */
+const EDGE = 12;
 
 /* ---------------------------------------------------------------- shapes */
 
@@ -462,6 +464,10 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkSta
   Object.assign(key.shadow.camera, { left: -1.2, right: 1.2, top: 1.2, bottom: -1.2, near: 0.5, far: 8 });
   key.shadow.bias = -0.0005;
   key.shadow.normalBias = 0.01;
+  // The sink stands still under a fixed light: the map is redrawn only when a key, the plug or a
+  // knob moves (see shadowKey in update), not every frame the camera falls past.
+  key.shadow.autoUpdate = false;
+  key.shadow.needsUpdate = true;
   const fill = new THREE.DirectionalLight(0xd4e2ff, 0.7);
   fill.position.set(2, 1.2, 1.4);
   const rim = new THREE.DirectionalLight(0xffe2c8, 1.6);
@@ -792,33 +798,6 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkSta
   const vortex = flat(mesh(G(new THREE.PlaneGeometry(0.17, 0.17)), vortexMat, false, false));
   vortex.position.set(DX, FLOOR_Y + 0.003, DZ);
 
-  // Splashes where the water lands. A small set of our own, recycled.
-  const NS = 280;
-  const sp = new Float32Array(NS * 3);
-  const sv = new Float32Array(NS * 3);
-  const sl = new Float32Array(NS);
-  for (let i = 0; i < NS; i++) sp[i * 3 + 1] = -50;
-  const spGeo = G(new THREE.BufferGeometry());
-  spGeo.setAttribute("position", new THREE.BufferAttribute(sp, 3));
-  const dot = T(softTex());
-  const spMat = M(new THREE.PointsMaterial({ size: 0.014, map: dot, color: 0xeaf4f8, transparent: true, opacity: 0.9, depthWrite: false }));
-  const splashes = new THREE.Points(spGeo, spMat);
-  splashes.frustumCulled = false;
-  model.add(splashes);
-  let spi = 0;
-  const splash = (x: number, y: number, z: number, spread: number, up: number) => {
-    const j = (spi = (spi + 1) % NS);
-    const a = Math.random() * Math.PI * 2;
-    const h = spread * (0.3 + Math.random() * 0.7);
-    sp[j * 3] = x;
-    sp[j * 3 + 1] = y;
-    sp[j * 3 + 2] = z;
-    sv[j * 3] = Math.cos(a) * h;
-    sv[j * 3 + 1] = up * (0.5 + Math.random() * 0.7);
-    sv[j * 3 + 2] = Math.sin(a) * h;
-    sl[j] = 1;
-  };
-
   // The shower's kind of water rides on the ribbons: streaking drops, crowns and rings. World coordinates.
   const W = SINK_SCALE;
   const jTap = drops.add({ n: 560, x0: 0, y: 0, z0: 0, spread: 0.012, vy: -0.9, tail: 0.04, ringR: 0.1, splash: 0.9, landY: 0 });
@@ -847,7 +826,7 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkSta
   const tailP = new Float64Array(4);
   const press = new Float64Array(4);
   const wantOn = [false, false, false, false];
-  let modeW = [1, 0, 0];
+  const modeW = [1, 0, 0];
   let level = 0;
   let heat = 0;
   let finishT = 0;
@@ -855,8 +834,13 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkSta
   let glassIn = 0;
   let plugLift = 0;
   let time = 0;
-  let acc = 0;
   let lastLights = -1;
+  const shadowKey = new Float64Array(8).fill(NaN);
+  const shadowNow = new Float64Array(8);
+  const MODE_W = [0, 0, 0];
+  const TAP_MESHES = [streamMesh, sprayMesh, bladeMesh];
+  const TAP_MATS = [tapStream, tapSpray, tapBlade];
+  const TAP_BASE = [0.85, 0.6, 0.6];
   const col = new THREE.Color();
   const v = new THREE.Vector3();
   const right = new THREE.Vector3();
@@ -876,9 +860,14 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkSta
   /* ------------------------------------------------------------ captions */
   const labelsEl = domRef("[data-sink-labels]");
   const barEl = domRef("[data-sink-bar]");
+  const footEl = domRef("[data-sink-foot]");
   let nodes: HTMLElement[] = [];
   let pips: HTMLElement[] = [];
   let nodesFor: HTMLElement | null = null;
+  /** The caption boxes, and their widths (measured once per layout; transforms never change them). */
+  let boxes: HTMLElement[] = [];
+  const boxW: number[] = [];
+  let boxVw = 0;
   let labelsHidden = false;
   let lastBar = -1;
 
@@ -894,12 +883,21 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkSta
   const placeLabels = (f: Frame, seq: number) => {
     const lab = labelsEl();
     if (!lab) return;
-    const compact = f.vw < COMPACT_W;
-    if (lab.hasAttribute("data-compact") !== compact) lab.toggleAttribute("data-compact", compact);
+    const compact = f.mobile || f.vh < COMPACT_H;
+    if (lab.hasAttribute("data-compact") !== compact) {
+      lab.toggleAttribute("data-compact", compact);
+      boxW.length = 0;
+    }
+    if (f.vw !== boxVw) {
+      boxVw = f.vw;
+      boxW.length = 0;
+    }
     if (nodesFor !== lab) {
       nodesFor = lab;
       nodes = Array.from(lab.querySelectorAll<HTMLElement>("[data-sink-part]"));
       pips = Array.from(document.querySelectorAll<HTMLElement>("[data-sink-pip]"));
+      boxes = nodes.map((n) => n.lastElementChild as HTMLElement);
+      boxW.length = 0;
     }
     labelsHidden = false;
     const out = 1 - smooth(4.15, 4.6, seq);
@@ -919,13 +917,31 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkSta
       const sy = ((1 - v.y) / 2) * f.vh;
       node.style.opacity = op < 0.01 ? "0" : opS;
       node.style.transform = `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px) translateY(${((1 - op) * 10).toFixed(1)}px)`;
-      // Captions read to the right of their dot, or to the left near the right edge.
-      const side = sx > f.vw * 0.7 ? "l" : "r";
+      // Captions read to the right of their dot, or to the left when the right runs out of screen. If
+      // neither side has room (a phone, a long word), the caption slides along its line to stay on screen.
+      const box = boxes[i];
+      if (boxW[i] === undefined) boxW[i] = box?.offsetWidth ?? 0;
+      const w = boxW[i];
+      const overR = sx - 12 + w - (f.vw - EDGE);
+      const overL = EDGE - (sx + 12 - w);
+      const side = overR <= 0 || overR < overL ? "r" : "l";
       if (node.dataset.side !== side) node.dataset.side = side;
+      const nudge = side === "r" ? -Math.max(0, overR) : Math.max(0, overL);
+      // `transform`, not margin: the box is pinned by `right` on the left side, and Tailwind's offset
+      // lives in the separate `translate` property, so the two compose.
+      const nudgeS = nudge ? `translateX(${nudge.toFixed(0)}px)` : "";
+      if (box && box.style.transform !== nudgeS) box.style.transform = nudgeS;
     }
     for (let i = 0; i < pips.length && i < 4; i++) {
       const on = seq >= i + 0.35 ? "1" : "";
       if ((pips[i].dataset.on ?? "") !== on) pips[i].dataset.on = on;
+    }
+    // Phones: when the show ends the sink rides up into the console's band, through where the row of
+    // pips scrolls away. So the row goes with the captions instead of crossing the sink.
+    const foot = footEl();
+    if (foot) {
+      const fo = compact ? out.toFixed(2) : "";
+      if (foot.style.opacity !== fo) foot.style.opacity = fo;
     }
     const bar = barEl();
     if (bar) {
@@ -940,8 +956,8 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkSta
   /* -------------------------------------------------------------- update */
   return {
     group,
-    prewarm() {
-      key.castShadow = true;
+    prewarm(cast = true) {
+      key.castShadow = cast;
     },
     always(f: Frame) {
       if (f.s[ch.on] < 0.01) {
@@ -959,7 +975,11 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkSta
       const live = s[ch.live] > 0.5;
 
       // One shadow light at a time: the basin's owns the shadows once it is in.
-      key.castShadow = s[ch.on] > 0.5 && s[C.basin] < 0.05;
+      const cast = s[ch.on] > 0.5 && s[C.basin] < 0.05;
+      if (cast !== key.castShadow) {
+        key.castShadow = cast;
+        shadowKey.fill(NaN);
+      }
 
       // What each outlet should do: the scroll's sequence, or the console once it is live.
       const flowing = 1 - smooth(0.05, 0.25, drain);
@@ -984,7 +1004,8 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkSta
       }
       for (let i = 0; i < 4; i++) keys[i].position.y = DECK_H + 0.0016 - press[i] * 0.0042;
 
-      const lightsKey = wantOn.reduce((k, w, i) => k | ((w ? 1 : 0) << i), 0);
+      let lightsKey = 0;
+      for (let i = 0; i < 4; i++) if (wantOn[i]) lightsKey |= 1 << i;
       for (let i = 0; i < 4; i++) {
         m4.makeTranslation(KEY_X(i), DECK_H + 0.0095 - press[i] * 0.0042, KEY_Z + 0.0135);
         lights.setMatrixAt(i, m4);
@@ -1046,19 +1067,18 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkSta
 
       // Tap: three heads, cross-faded, all landing on the water.
       const mode: SinkMode = live ? sinkUi.mode : "stream";
-      const mw = [mode === "stream" ? 1 : 0, mode === "spray" ? 1 : 0, mode === "blade" ? 1 : 0];
-      modeW = reduced ? mw : modeW.map((w, i) => w + (mw[i] - w) * damp(dt, 8));
+      MODE_W[0] = mode === "stream" ? 1 : 0;
+      MODE_W[1] = mode === "spray" ? 1 : 0;
+      MODE_W[2] = mode === "blade" ? 1 : 0;
+      for (let k = 0; k < 3; k++) modeW[k] = reduced ? MODE_W[k] : modeW[k] + (MODE_W[k] - modeW[k]) * damp(dt, 8);
       const tapLen = TAP_OUT.y - waterY;
-      const tapMeshes = [streamMesh, sprayMesh, bladeMesh];
-      const tapMats = [tapStream, tapSpray, tapBlade];
-      const base = [0.85, 0.6, 0.6];
       for (let k = 0; k < 3; k++) {
-        tapMeshes[k].scale.y = tapLen;
-        tapMats[k].uniforms.uHead.value = headP[0];
-        tapMats[k].uniforms.uTail.value = tailP[0];
-        tapMats[k].uniforms.uAlpha.value = base[k] * modeW[k] * RIBBON;
-        tapMats[k].uniforms.uRows.value = (k === 1 ? 30 : 14) * (tapLen / 0.45);
-        tapMeshes[k].visible = headP[0] > 0 && modeW[k] > 0.01;
+        TAP_MESHES[k].scale.y = tapLen;
+        TAP_MATS[k].uniforms.uHead.value = headP[0];
+        TAP_MATS[k].uniforms.uTail.value = tailP[0];
+        TAP_MATS[k].uniforms.uAlpha.value = TAP_BASE[k] * modeW[k] * RIBBON;
+        TAP_MATS[k].uniforms.uRows.value = (k === 1 ? 30 : 14) * (tapLen / 0.45);
+        TAP_MESHES[k].visible = headP[0] > 0 && modeW[k] > 0.01;
       }
       // The fan faces the camera's side of the bowl.
       bladeMesh.rotation.y = Math.atan2(f.cam.position.x - group.position.x, f.cam.position.z - group.position.z) * 0.3;
@@ -1081,33 +1101,25 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkSta
       glass.position.y = DECK_H + 0.004 + (1 - glassIn) * 0.12;
       glassMat.opacity = 0.28 * glassIn;
 
-      // Splashes where each stream lands (time-based: none under reduced motion).
-      if (!reduced && dt > 0) {
-        acc += dt * 90;
-        while (acc >= 1) {
-          acc -= 1;
-          if (headP[0] >= 1.05 && tailP[0] < 0.9) splash(TAP_OUT.x, waterY + 0.002, TAP_OUT.z, 0.35 + modeW[2] * 0.3, 0.9);
-          if (headP[1] >= 1.05 && tailP[1] < 0.9) {
-            splash(SLOT.x0 + Math.random() * (SLOT.x1 - SLOT.x0), waterY + 0.002, sheetA.landZ, 0.18, 0.55);
-            if (Math.random() < 0.6) splash(GRILLE.x0 + Math.random() * (GRILLE.x1 - GRILLE.x0), waterY + 0.002, sheetB.landZ, 0.18, 0.5);
+      // Shadow casters that move: the four keys, the plug, both knobs, the drinking-water lever.
+      if (key.castShadow) {
+        shadowNow[0] = press[0];
+        shadowNow[1] = press[1];
+        shadowNow[2] = press[2];
+        shadowNow[3] = press[3];
+        shadowNow[4] = plugLift;
+        shadowNow[5] = tempKnob.rotation.y;
+        shadowNow[6] = drainKnob.rotation.y;
+        shadowNow[7] = roLever.rotation.y;
+        let moved = false;
+        for (let i = 0; i < 8; i++)
+          if (!(Math.abs(shadowNow[i] - shadowKey[i]) < 1e-4)) {
+            shadowKey[i] = shadowNow[i];
+            moved = true;
           }
-          if (headP[3] >= 1.05 && tailP[3] < 0.9 && Math.random() < 0.4) splash(RO_OUT.x, waterY + 0.002, RO_OUT.z, 0.15, 0.45);
-        }
-        for (let i = 0; i < NS; i++) {
-          if (!sl[i]) continue;
-          const k = i * 3;
-          sv[k + 1] -= 6 * dt;
-          sp[k] += sv[k] * dt;
-          sp[k + 1] += sv[k + 1] * dt;
-          sp[k + 2] += sv[k + 2] * dt;
-          if (sp[k + 1] < waterY) {
-            sl[i] = 0;
-            sp[k + 1] = -50;
-          }
-        }
-        spGeo.attributes.position.needsUpdate = true;
+        // While the basin is coming in it may move through this light's box: keep the map live then.
+        if (moved || s[C.basin] > 0.01) key.shadow.needsUpdate = true;
       }
-      splashes.visible = false;
 
       // Drive the jets from the same pour timings as the ribbons.
       {
