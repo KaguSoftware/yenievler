@@ -83,11 +83,11 @@ export function Minute() {
       id="minute"
       ref={sec}
       aria-label="One minute under a standard head and the R-360"
-      className="relative h-[380vh] bg-signal text-ink motion-reduce:h-[100svh]"
+      className="relative h-[calc(var(--lvh)*380)] bg-signal text-ink motion-reduce:h-[calc(var(--svh)*100)]"
     >
       <div
         ref={host}
-        className="sticky top-0 h-[100svh] min-h-[620px] overflow-hidden short:min-h-0!"
+        className="sticky top-0 h-[calc(var(--svh)*100)] min-h-[620px] overflow-hidden short:min-h-0!"
       >
         <div ref={stage} className="absolute inset-0" aria-hidden />
         <p className="sr-only">
@@ -184,7 +184,7 @@ export function Minute() {
           />
 
           {/* Title, caption beats and the clock share one box so phone and desktop read as separate compositions. */}
-          <div className="absolute inset-x-[var(--pad)] top-[clamp(28px,6vh,64px)] bottom-[clamp(24px,5vh,56px)] flex flex-col stack:top-auto stack:grid stack:grid-cols-[1fr_auto] stack:items-end stack:gap-x-4 stack:gap-y-3">
+          <div className="absolute inset-x-[var(--pad)] top-[clamp(28px,calc(var(--lvh)*6),64px)] bottom-[clamp(24px,calc(var(--lvh)*5),56px)] flex flex-col stack:top-auto stack:grid stack:grid-cols-[1fr_auto] stack:items-end stack:gap-x-4 stack:gap-y-3">
             <motion.h2
               className="display text-[clamp(40px,5.4vw,92px)] text-paper stack:col-span-2 stack:text-[clamp(40px,9vw,92px)]"
               initial="hidden"
@@ -266,7 +266,7 @@ function Readout({
       className={`absolute -translate-x-1/2 text-center whitespace-nowrap ${tone}`}
       style={{
         left,
-        top: "calc(var(--jbase, 600px) + clamp(14px, 2.4vh, 26px))",
+        top: "calc(var(--jbase, 600px) + clamp(14px, calc(var(--lvh)*2.4), 26px))",
       }}
     >
       <p className="display num text-[clamp(30px,4.2vw,68px)] stack:text-[clamp(30px,6vw,64px)]">

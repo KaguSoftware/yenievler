@@ -134,7 +134,7 @@ export function Hero() {
       id="top"
       aria-label="Yeni Evler Yapı"
       data-station="hero"
-      className="relative isolate h-[100svh] min-h-[780px] overflow-hidden max-sm:flex max-sm:h-auto max-sm:min-h-[max(100svh,640px)] max-sm:flex-col short:flex! short:h-auto! short:min-h-[100svh]! short:flex-col! bg-signal text-ink-deep world:bg-transparent"
+      className="relative isolate h-[calc(var(--svh)*100)] min-h-[780px] overflow-hidden max-sm:flex max-sm:h-auto max-sm:min-h-[max(calc(var(--svh)*100),640px)] max-sm:flex-col short:flex! short:h-auto! short:min-h-[calc(var(--svh)*100)]! short:flex-col! bg-signal text-ink-deep world:bg-transparent"
     >
       {failed && (
         <p className="absolute right-[var(--pad)] top-1/3 max-w-60 text-sm">
@@ -169,7 +169,7 @@ export function Hero() {
         </div>
       </motion.nav>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-wrap items-end justify-between gap-x-10 gap-y-8 px-[var(--pad)] pb-[clamp(24px,5vh,56px)] max-sm:relative max-sm:mt-auto max-sm:gap-y-6 max-sm:pt-8 short:relative! short:mt-auto! short:gap-y-6! short:pt-10! short:pb-6!">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-wrap items-end justify-between gap-x-10 gap-y-8 px-[var(--pad)] pb-[clamp(24px,calc(var(--lvh)*5),56px)] max-sm:relative max-sm:mt-auto max-sm:gap-y-6 max-sm:pt-8 short:relative! short:mt-auto! short:gap-y-6! short:pt-10! short:pb-6!">
         <div className="max-w-[1000px]">
           <motion.div style={scrollOut(titleY, titleO)}>
             <motion.h1

@@ -193,7 +193,7 @@ export function Sink() {
             with the sink's window as a band across its top and everything else clipped below it. */}
         <div
           ref={stage}
-          className="contents stage:sticky stage:top-0 stage:-mx-[var(--pad)] stage:block stage:h-lvh stage:px-[var(--pad)] stage:pt-[calc(var(--band)+26px)] stage:[--band:40lvh] stage:[clip-path:inset(var(--band)_0_0_0)] stage:[&_:is(a,button,input)]:scroll-mt-[calc(40lvh+40px)]"
+          className="contents stage:sticky stage:top-0 stage:-mx-[var(--pad)] stage:block stage:h-[calc(var(--lvh)*100)] stage:px-[var(--pad)] stage:pt-[calc(var(--band)+26px)] stage:[--band:calc(var(--lvh)*40)] stage:[clip-path:inset(var(--band)_0_0_0)] stage:[&_:is(a,button,input)]:scroll-mt-[calc(calc(var(--lvh)*40)+40px)]"
         >
         {/* The words fade into the paper as they reach the band, instead of being cut by a line. */}
         <motion.div
@@ -201,7 +201,7 @@ export function Sink() {
           style={{ opacity: fadeO }}
           className="pointer-events-none absolute inset-x-0 top-[var(--band)] z-10 hidden h-7 bg-[linear-gradient(to_bottom,var(--bg),transparent)] stage:block"
         />
-        <motion.div style={still} className="lg:col-start-1 lg:row-start-1 side:col-start-1 stage:will-change-transform">
+        <motion.div data-stage-ride style={still} className="lg:col-start-1 lg:row-start-1 side:col-start-1 stage:will-change-transform">
           <Reveal className="flex flex-col gap-6">
             <h2 id="sink-spec-title" className="display max-w-[14ch] text-[clamp(34px,6.4vw,108px)] text-balance">
               {t.sink.title}
@@ -215,7 +215,7 @@ export function Sink() {
           {/* With WebGL the shared canvas draws the sink centred on this window (data-world-pin). */}
           <div
             ref={band}
-            className="noworld:hidden relative aspect-square max-h-[62svh] min-h-[220px] lg:aspect-auto lg:h-[min(56vh,560px)] lg:max-h-none motion-reduce:stack:aspect-auto! motion-reduce:stack:h-[40lvh]! motion-reduce:stack:max-h-none! side:sticky side:top-[22lvh] side:col-start-2 side:row-span-4 side:row-start-1 side:aspect-auto side:h-[56lvh] side:max-h-none side:min-h-0 stage:absolute stage:inset-x-0 stage:top-0 stage:aspect-auto stage:h-[var(--band)] stage:max-h-none stage:min-h-0"
+            className="noworld:hidden relative aspect-square max-h-[calc(var(--svh)*62)] min-h-[220px] lg:aspect-auto lg:h-[min(calc(var(--lvh)*56),560px)] lg:max-h-none motion-reduce:stack:aspect-auto! motion-reduce:stack:h-[calc(var(--lvh)*40)]! motion-reduce:stack:max-h-none! side:sticky side:top-[calc(var(--lvh)*22)] side:col-start-2 side:row-span-4 side:row-start-1 side:aspect-auto side:h-[calc(var(--lvh)*56)] side:max-h-none side:min-h-0 stage:absolute stage:inset-x-0 stage:top-0 stage:aspect-auto stage:h-[var(--band)] stage:max-h-none stage:min-h-0"
           >
             <div data-world-pin="sink" className="pointer-events-none absolute inset-0" />
           </div>
@@ -224,7 +224,7 @@ export function Sink() {
               <Drawing f={f} on={on} mode={mode} temp={temp} plug={plug} full={full} focus={focus} />
             </div>
           </Reveal>
-          <motion.div style={ride} className="side:col-start-1 stage:mt-7 stage:will-change-transform">
+          <motion.div data-stage-ride style={ride} className="side:col-start-1 stage:mt-7 stage:will-change-transform">
             <Reveal delay={120}>
               <Console
                 on={on}
@@ -272,6 +272,7 @@ export function Sink() {
 
         <motion.div
           ref={tail}
+          data-stage-ride
           style={ride}
           className="flex flex-col gap-8 sm:gap-10 lg:col-start-1 lg:row-start-2 side:col-start-1 stage:mt-9 stage:will-change-transform"
         >
@@ -333,14 +334,14 @@ export function Sink() {
         </div>
 
         {/* Phones: the scroll the words need to pass under the band while the stage holds. */}
-        <div aria-hidden className="hidden stage:block stage:h-[var(--stage-run,150lvh)]" />
+        <div aria-hidden className="hidden stage:block stage:h-[var(--stage-run,calc(var(--lvh)*150))]" />
 
         {/* Empty scroll that keeps the sticky sink window on screen after the words have gone. */}
         <div
           ref={outro}
           data-station="sink-dive"
           aria-hidden
-          className="hidden h-[130vh] world:block motion-reduce:hidden lg:col-start-1 lg:row-start-3 side:col-start-1"
+          className="hidden h-[calc(var(--lvh)*130)] world:block motion-reduce:hidden lg:col-start-1 lg:row-start-3 side:col-start-1"
         />
       </div>
     </section>

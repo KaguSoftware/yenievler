@@ -16,10 +16,10 @@ export function SinkShow() {
       id="sink"
       data-station="sink"
       aria-labelledby="sink-title"
-      className="relative bg-paper world:h-[460vh] world:bg-transparent motion-reduce:world:h-[100svh]"
+      className="relative bg-paper world:h-[calc(var(--lvh)*460)] world:bg-transparent motion-reduce:world:h-[calc(var(--svh)*100)]"
     >
-      <div className="noworld:static noworld:h-auto noworld:min-h-0 noworld:overflow-visible noworld:px-[var(--pad)] noworld:pt-[clamp(80px,11vw,160px)] sticky top-0 h-[100svh] min-h-[620px] overflow-hidden short:min-h-0!">
-        <Reveal className="pointer-events-none absolute top-[clamp(28px,6vh,64px)] left-[var(--pad)] max-w-[560px] noworld:static">
+      <div className="noworld:static noworld:h-auto noworld:min-h-0 noworld:overflow-visible noworld:px-[var(--pad)] noworld:pt-[clamp(80px,11vw,160px)] sticky top-0 h-[calc(var(--svh)*100)] min-h-[620px] overflow-hidden short:min-h-0!">
+        <Reveal className="pointer-events-none absolute top-[clamp(28px,calc(var(--lvh)*6),64px)] left-[var(--pad)] max-w-[560px] noworld:static">
           <h2 id="sink-title" className="display text-[clamp(34px,5.4vw,92px)]">
             {t.sinkShow.titleA} <span className="text-signal-deep">{t.sinkShow.titleB}</span>
           </h2>

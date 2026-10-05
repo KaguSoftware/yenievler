@@ -39,12 +39,12 @@ export function pinScreenHeight(
 }
 
 /**
- * The window's height with a phone's toolbar out (100svh), which is the most a layout can count on.
+ * The window's height with a phone's toolbar out (100 --svh, see SCREEN_LOCK in [lang]/layout.tsx), which is the most a layout can count on.
  * On desktop it is simply the window's height.
  */
 export function smallScreenHeight() {
   const probe = document.createElement("div");
-  probe.style.cssText = "position:fixed;top:0;left:0;width:0;height:100svh;visibility:hidden;pointer-events:none";
+  probe.style.cssText = "position:fixed;top:0;left:0;width:0;height:calc(var(--svh) * 100);visibility:hidden;pointer-events:none";
   document.body.appendChild(probe);
   const svh = probe.offsetHeight;
   probe.remove();

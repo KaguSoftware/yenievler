@@ -81,8 +81,32 @@
   }
 }
 
+/* The stage's ride (useStage), run by the compositor where scroll-driven animations exist, so the
+   words move with the native scroll instead of a frame behind it on a busy main thread. useStage
+   sets [data-ride] and --stage-ride (the ride's length) on the track while the stage is on, and
+   leaves the offset to this; elsewhere it drives the same offset from a scroll listener. */
+@supports (animation-range: exit-crossing 0% exit-crossing 10px) {
+  [data-ride] {
+    view-timeline: --stage-ride block;
+  }
+  [data-ride] [data-stage-ride] {
+    animation: stage-ride linear both;
+    animation-timeline: --stage-ride;
+    animation-range: exit-crossing 0% exit-crossing var(--stage-ride);
+  }
+}
+@keyframes stage-ride {
+  to {
+    translate: 0 calc(var(--stage-ride) * -1);
+  }
+}
+
 :root {
   --pad: clamp(20px, 4vw, 56px);
+  /* One hundredth of the screen's height, pinned in px by SCREEN_LOCK ([lang]/layout.tsx) so a phone's
+     toolbar on the move cannot resize the layout. Use these, never raw svh, lvh or vh. */
+  --svh: 1svh;
+  --lvh: 1lvh;
 }
 
 html {

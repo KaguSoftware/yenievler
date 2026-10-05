@@ -19,7 +19,10 @@ import { useMotionValue } from "framer-motion";
  *   tail   the last block that rides; the run ends when its bottom edge passes under the band
  *
  * CSS decides whether the stage is on; this only follows it, and `y` is zero while it is off, so
- * the riding blocks can carry it always. `after` is how many screens of scroll
+ * the riding blocks can carry it always. Riding blocks also carry `data-stage-ride`: where the browser
+ * has scroll-driven animations, the ride is a CSS animation on the compositor (globals.css) and `y`
+ * stays zero, because a scroll listener only runs when the main thread, busy with the world, gets a
+ * frame, which leaves the words a step behind the page. `after` is how many screens of scroll
  * follow the run while the stage still holds (negative: the run's end overlaps whatever comes next).
  */
 export function useStage(after = 0) {
@@ -40,6 +43,7 @@ export function useStage(after = 0) {
     const tl = tail.current;
     if (!tr || !st || !bd || !tl) return;
     const geo = { on: false, top: 0, run: 0 };
+    const native = CSS.supports("animation-range", "exit-crossing 0% exit-crossing 10px");
     /** Layout offset inside the stage: transforms do not count, so the ride cannot feed back. */
     const within = (el: HTMLElement) => {
       let o = 0;
@@ -48,7 +52,7 @@ export function useStage(after = 0) {
     };
     const apply = () => {
       const gone = geo.on ? Math.min(geo.run, Math.max(0, window.scrollY - geo.top)) : 0;
-      y.set(-gone);
+      y.set(native ? 0 : -gone);
       fade.set(geo.on ? Math.min(1, Math.max(0, (geo.run - gone) / 80)) : 0);
     };
     let run = "";
@@ -65,6 +69,13 @@ export function useStage(after = 0) {
         run = next;
         if (next) tr.style.setProperty("--stage-run", next);
         else tr.style.removeProperty("--stage-run");
+        if (next && native) {
+          tr.style.setProperty("--stage-ride", `${Math.round(geo.run)}px`);
+          tr.dataset.ride = "";
+        } else {
+          tr.style.removeProperty("--stage-ride");
+          delete tr.dataset.ride;
+        }
       }
       setOn(geo.on);
       apply();

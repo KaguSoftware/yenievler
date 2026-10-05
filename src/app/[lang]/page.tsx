@@ -19,15 +19,15 @@ export default function Home() {
       <Hero />
       <Exploded />
       <TechSheet />
-      <Spacer id="air" className="h-[130vh]" />
+      <Spacer id="air" className="h-[calc(var(--lvh)*130)]" />
       <Range />
       <SinkShow />
       <Sink />
-      <Spacer id="drain" className="h-[150vh]" />
+      <Spacer id="drain" className="h-[calc(var(--lvh)*150)]" />
       <Configurator />
-      <Spacer id="spill" className="h-[170vh]" />
+      <Spacer id="spill" className="h-[calc(var(--lvh)*170)]" />
       <Showrooms />
-      <Spacer id="pool" className="h-[150vh]" />
+      <Spacer id="pool" className="h-[calc(var(--lvh)*150)]" />
       <Footer />
     </main>
   );
