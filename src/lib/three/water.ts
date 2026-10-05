@@ -12,9 +12,7 @@ import type { Frame, Stage } from "./stage";
  *   2 field:  rain over the whole pool, for the footer
  */
 
-const GRID = 140;
 const SIZE = 16;
-const STEP = SIZE / (GRID - 1);
 const N_COL = 1900;
 const N_SPILL = 400;
 const N_FIELD = 500;
@@ -55,14 +53,28 @@ export interface Water extends Stage {
     cam: THREE.PerspectiveCamera,
     look: THREE.Vector3,
   ): void;
+  /**
+   * In place of reflect() on a frame where the mirror would show nothing worth a second pass over the
+   * scene: the target is wiped to the backdrop, once per backdrop colour (`backdrop` is any number
+   * that changes with it), and the floor keeps its view-dependent sheen.
+   */
+  plain(renderer: THREE.WebGLRenderer, cam: THREE.PerspectiveCamera, backdrop: number): void;
+  /** How much of the mirror the floor shows right now, 0..1 (wetness and gloss together). */
+  mirror(): number;
   floorShown(): boolean;
   /** Push the surface at a world point (a hand passing over the floor). */
   poke(x: number, z: number, a: number): void;
 }
 
-export function buildWater(density = 1): Water {
+export function buildWater(density = 1, lite = false): Water {
   const group = new THREE.Group();
   const scratch = new Float64Array(3);
+  // The ripple grid: stepped, re-normalled and uploaded on every frame the surface moves, so a phone
+  // gets about half the cells. At its screen size the ripples read the same.
+  const GRID = lite ? 104 : 140;
+  const STEP = SIZE / (GRID - 1);
+  /** The mirror's share of the screen's pixels, per axis. */
+  const RT_SCALE = lite ? 0.36 : 0.5;
 
   /* ------------------------------------------------------------- the floor */
   const geo = new THREE.PlaneGeometry(SIZE, SIZE, GRID - 1, GRID - 1);
@@ -301,6 +313,14 @@ export function buildWater(density = 1): Water {
   let shown = false;
   let seeded = false;
   let fieldAcc = 0;
+  let churn = 0;
+  /** The hero floor's own drift of its wet patch, put back when the camera returns to it. */
+  const heroOff = new THREE.Vector2();
+  let wasTemporal = true;
+  /** The mirror target holds the plain backdrop (see plain()). */
+  let blank = false;
+  let blankFor = -1;
+  const nothing = new THREE.Scene();
   /** Drops and splashes in the air after the last frame (0 means their loops are skipped). */
   let dropsLive = 0;
   let splashLive = 0;
@@ -338,7 +358,9 @@ export function buildWater(density = 1): Water {
     const F = lastF;
     const wScale = s[C.water];
     const colTarget = Math.min(N_COL, Math.round(Fcur.n * density * wScale));
-    const spillTarget = Math.round(s[C.overflow] * N_SPILL);
+    // Once the slab's edge is under the water the sheet has nowhere to fall: see the churn below.
+    const under = spillSrc.y <= ground + 0.01;
+    const spillTarget = under ? 0 : Math.round(s[C.overflow] * N_SPILL);
     const fieldTarget = Math.round(s[C.field] * N_FIELD * (f.mobile ? 0.7 : 1));
 
     // Colour of the drops follows the background so they stay visible.
@@ -409,6 +431,23 @@ export function buildWater(density = 1): Water {
 
     const sim = shown;
     const gMul = F.s;
+
+    // The sheet's edge under water: a line of churn where it went down. It used to be the sheet's own
+    // drops, each born under the surface and "landing" again on every frame, a few hundred impulses
+    // and splashes per frame, more on a faster screen. Now it is a rate per second, lighter on a phone.
+    if (under && sim && s[C.overflow] > 0.01) {
+      const rate = f.mobile ? 6000 : 9000;
+      churn += s[C.overflow] * rate * dt;
+      let n = Math.min(churn | 0, 240);
+      churn = Math.min(churn - n, 1);
+      const amp = F.a * 0.05 * (48000 / rate);
+      while (n-- > 0) {
+        const x = spillSrc.x0 + Math.random() * (spillSrc.x1 - spillSrc.x0);
+        const z = spillSrc.z + Math.random() * 0.05;
+        splash(x, ground + 0.01, z, ground, 1.0, 0.75);
+        if ((n & 3) === 0) impulse(x, z, amp);
+      }
+    } else churn = 0;
     // No drop in the air: dead ones were parked as they landed, so there is nothing to integrate or upload.
     let live = 0;
     for (let i = 0; dropsLive && i < N; i++) {
@@ -516,6 +555,13 @@ export function buildWater(density = 1): Water {
         writeSurface(s[C.amp]);
         calm = true;
       }
+    } else if (!sim && !calm) {
+      // The floor has gone out of sight mid-ripple. Lay it flat now, or the same ripples would be
+      // waiting, frozen, at the next place a floor appears (the footer's rain on the hero's floor).
+      cur.fill(0);
+      prev.fill(0);
+      writeSurface(s[C.amp]);
+      calm = true;
     }
     driveFloor(f, colTarget);
   };
@@ -528,9 +574,12 @@ export function buildWater(density = 1): Water {
     U.uTime.value += dt;
     U.uVis.value = s[C.floor];
     U.uGloss.value = s[C.gloss];
-    // The hero floor wets out over time while the rain runs; below it the timeline decides.
-    const temporal = s[C.ground] > -0.5 && s[C.floor] > 0.5;
+    // The hero floor wets out over time while the rain runs; below it the timeline decides. The hero's
+    // own patch is kept while the camera is away (wetV, radV), so the floor it comes back to is the
+    // floor it left, not a dry one that has to spread again.
+    const temporal = s[C.ground] > -0.5;
     if (temporal) {
+      if (!wasTemporal) (U.uOff.value as THREE.Vector2).copy(heroOff);
       if (colTarget) {
         uWet += (1 - uWet) * Math.min(1, dt * 1.5);
         uRad = Math.min(8.5, uRad + dt * (uRad < 2.5 ? 0.9 : 0.35));
@@ -542,13 +591,16 @@ export function buildWater(density = 1): Water {
         if (uRad < 1.2) uWet = Math.max(0, uWet - dt * 0.25);
       }
       if (!uWet) U.uOff.value.set(0, 0);
+      heroOff.copy(U.uOff.value as THREE.Vector2);
+      U.uWet.value = uWet;
+      U.uRad.value = uRad;
+      wasTemporal = true;
     } else {
-      uWet = s[C.wet];
-      uRad = s[C.spread] * 9.5;
+      U.uWet.value = s[C.wet];
+      U.uRad.value = s[C.spread] * 9.5;
       U.uOff.value.set(0, 0.55);
+      wasTemporal = false;
     }
-    U.uWet.value = uWet;
-    U.uRad.value = uRad;
     // Colours: dry floor is the backdrop itself; the wet tint comes from the table.
     U.uDry.value.setRGB(f.bg.lin[0], f.bg.lin[1], f.bg.lin[2], THREE.LinearSRGBColorSpace);
     labToLinear(s[C.tintL], s[C.tintA], s[C.tintB], scratch);
@@ -567,12 +619,30 @@ export function buildWater(density = 1): Water {
     pool,
     spill: spillSrc,
     floorShown: () => shown,
+    mirror: () => {
+      const U = mat.uniforms;
+      return shown ? (U.uGloss.value as number) * (0.92 * (U.uWet.value as number) + 0.03) : 0;
+    },
+    plain(renderer, cam, backdrop) {
+      mat.uniforms.camPos.value.copy(cam.position);
+      if (blank && backdrop === blankFor) return;
+      blank = true;
+      blankFor = backdrop;
+      // An empty scene through the renderer's own pass, not a bare clear(): the pass converts the
+      // backdrop for a linear target, and a bare clear would leave the canvas's encoding in it, a
+      // paler mirror than the real one.
+      renderer.setRenderTarget(rt);
+      renderer.render(nothing, cam);
+      renderer.setRenderTarget(null);
+    },
     poke: impulse,
     update,
     resize(w, h, pr) {
-      rt.setSize(Math.max(2, Math.round(w * pr * 0.5)), Math.max(2, Math.round(h * pr * 0.5)));
+      rt.setSize(Math.max(2, Math.round(w * pr * RT_SCALE)), Math.max(2, Math.round(h * pr * RT_SCALE)));
+      blank = false;
     },
     reflect(renderer, scene, cam, look) {
+      blank = false;
       const gy = floor.position.y;
       mcam.projectionMatrix.copy(cam.projectionMatrix);
       mcam.position.set(cam.position.x, 2 * gy - cam.position.y, cam.position.z);

@@ -34,6 +34,8 @@ export interface BuildCtx {
   envBasin: THREE.Texture;
   mobile: () => boolean;
   reduced: boolean;
+  /** A touch device: build the lighter buffers (smaller shadow map, coarser water grid). */
+  lite: boolean;
 }
 
 /** A stage adds one group to the shared scene. The world only calls update while it is visible. */

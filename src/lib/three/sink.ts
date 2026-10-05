@@ -614,7 +614,9 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkSta
   const display = flat(mesh(G(new THREE.PlaneGeometry(0.058, 0.0254)), dispMat, false, false));
   display.position.set(0.172, DECK_H + 0.0009, -0.172);
   let dispShown = "";
-  const font = () => getComputedStyle(document.body).fontFamily || "sans-serif";
+  // Read once: the display redraws on most frames while the temperature counts.
+  let fontFamily = "";
+  const font = () => fontFamily || (fontFamily = getComputedStyle(document.body).fontFamily || "sans-serif");
   const drawDisplay = (text: string) => {
     if (text === dispShown) return;
     dispShown = text;
@@ -835,6 +837,9 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkSta
   let plugLift = 0;
   let time = 0;
   let lastLights = -1;
+  let lastPress = -1;
+  /** The sink has left the shot and its water was cleared (see always). */
+  let gone = false;
   const shadowKey = new Float64Array(8).fill(NaN);
   const shadowNow = new Float64Array(8);
   const MODE_W = [0, 0, 0];
@@ -843,7 +848,6 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkSta
   const TAP_BASE = [0.85, 0.6, 0.6];
   const col = new THREE.Color();
   const v = new THREE.Vector3();
-  const right = new THREE.Vector3();
 
   const applyFinish = (t: number) => {
     const a = FINISH[0];
@@ -892,7 +896,8 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkSta
       boxVw = f.vw;
       boxW.length = 0;
     }
-    if (nodesFor !== lab) {
+    // The pips are keyed by their label, so a language switch remounts them.
+    if (nodesFor !== lab || (pips.length > 0 && !pips[0].isConnected)) {
       nodesFor = lab;
       nodes = Array.from(lab.querySelectorAll<HTMLElement>("[data-sink-part]"));
       pips = Array.from(document.querySelectorAll<HTMLElement>("[data-sink-pip]"));
@@ -901,7 +906,6 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkSta
     }
     labelsHidden = false;
     const out = 1 - smooth(4.15, 4.6, seq);
-    right.set(1, 0, 0).applyQuaternion(f.cam.quaternion);
     for (let i = 0; i < nodes.length && i < 4; i++) {
       const node = nodes[i];
       // Each caption hands over to the next; the pips below keep the count.
@@ -963,7 +967,13 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkSta
       if (f.s[ch.on] < 0.01) {
         hideLabels();
         for (const j of allJets) j.on = 0;
-      }
+        // Once, as the sink goes: whatever it had in the air goes with it. Otherwise those drops hang
+        // frozen under the veil and play out over the range (scrolling up) or the basin (down).
+        if (!gone) {
+          gone = true;
+          drops.clear();
+        }
+      } else gone = false;
     },
     update(f: Frame) {
       const s = f.s;
@@ -1006,11 +1016,16 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkSta
 
       let lightsKey = 0;
       for (let i = 0; i < 4; i++) if (wantOn[i]) lightsKey |= 1 << i;
-      for (let i = 0; i < 4; i++) {
-        m4.makeTranslation(KEY_X(i), DECK_H + 0.0095 - press[i] * 0.0042, KEY_Z + 0.0135);
-        lights.setMatrixAt(i, m4);
+      // The lamps ride on the keys: rewritten only while a key is moving.
+      const pressSum = press[0] + press[1] * 3 + press[2] * 7 + press[3] * 13;
+      if (Math.abs(pressSum - lastPress) > 1e-5) {
+        lastPress = pressSum;
+        for (let i = 0; i < 4; i++) {
+          m4.makeTranslation(KEY_X(i), DECK_H + 0.0095 - press[i] * 0.0042, KEY_Z + 0.0135);
+          lights.setMatrixAt(i, m4);
+        }
+        lights.instanceMatrix.needsUpdate = true;
       }
-      lights.instanceMatrix.needsUpdate = true;
       if (lightsKey !== lastLights) {
         lastLights = lightsKey;
         for (let i = 0; i < 4; i++) lights.setColorAt(i, wantOn[i] ? LIGHT_ON : LIGHT_OFF);
@@ -1047,11 +1062,19 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkSta
       drainKnob.rotation.y = plugLift * (Math.PI / 2);
       led.color.setRGB(0.44, 0.53, 1).multiplyScalar(0.55 + plugLift * 0.65);
 
+      // The bowl. Where the page drives the sink, the water level follows the page: it rises as the
+      // keys go down in the show, and the dive empties it (shownLevel below), so it is the same bowl
+      // at the same place whichever way the page is scrolled and however long it was left there.
+      // Only the live console runs it on a clock, with the plug and the outlets it was given.
       const anyWater = wantOn[0] || wantOn[1] || wantOn[3];
-      const goal = plugIn && anyWater ? LEVEL_MAX : plugIn ? level : 0;
-      if (reduced) level = goal;
-      else if (goal > level) level = Math.min(goal, level + dt * 0.012);
-      else level = Math.max(goal, level - dt * (drain > 0.12 ? 0.05 : 0.03));
+      const shown = LEVEL_MAX * smooth(0.35, 3.35, seq);
+      const clock = plugIn && anyWater ? LEVEL_MAX : plugIn ? level : 0;
+      if (!live) level = reduced ? shown : level + (shown - level) * damp(dt, 3);
+      else if (reduced) level = clock;
+      else if (drain <= 0.001) {
+        if (clock > level) level = Math.min(clock, level + dt * 0.012);
+        else level = Math.max(clock, level - dt * 0.03);
+      }
       const shownLevel = level * (1 - smooth(0.15, 0.75, drain));
       surface.visible = shownLevel > 0.002;
       surface.position.y = FLOOR_Y + shownLevel;
@@ -1059,7 +1082,7 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkSta
       const waterY = FLOOR_Y + shownLevel;
 
       // Vortex while the bowl empties.
-      const swirl = Math.max(smooth(0.1, 0.3, drain) * (1 - smooth(0.75, 0.95, drain)), !plugIn && level > 0.004 ? 0.8 : 0);
+      const swirl = Math.max(smooth(0.1, 0.3, drain) * (1 - smooth(0.75, 0.95, drain)), !plugIn && shownLevel > 0.004 ? 0.8 : 0);
       vortexMat.uniforms.uAlpha.value = swirl * 0.7;
       vortexMat.uniforms.uTime.value = time;
       vortex.visible = swirl > 0.01;
@@ -1157,7 +1180,8 @@ export function buildSink(ctx: BuildCtx, ch: SinkChannels, drops: Jets): SinkSta
         jCup.landY = gy + W * DECK_H;
       }
 
-      model.updateMatrixWorld(true);
+      // The captions need the model's own matrix only; the renderer walks the children itself.
+      model.updateWorldMatrix(true, false);
       placeLabels(f, seq);
     },
     dispose() {

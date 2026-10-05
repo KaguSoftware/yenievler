@@ -67,6 +67,7 @@ export function Configurator() {
       <div className="contents stage:relative stage:block stage:min-h-0 stage:flex-1 stage:[clip-path:inset(0)]">
       <motion.div
         aria-hidden
+        data-bg=""
         style={{ opacity: fadeO }}
         className="pointer-events-none absolute inset-x-0 top-0 z-10 hidden h-7 bg-[linear-gradient(to_bottom,var(--bg),transparent)] stage:block"
       />

@@ -198,6 +198,7 @@ export function Sink() {
         {/* The words fade into the paper as they reach the band, instead of being cut by a line. */}
         <motion.div
           aria-hidden
+          data-bg=""
           style={{ opacity: fadeO }}
           className="pointer-events-none absolute inset-x-0 top-[var(--band)] z-10 hidden h-7 bg-[linear-gradient(to_bottom,var(--bg),transparent)] stage:block"
         />

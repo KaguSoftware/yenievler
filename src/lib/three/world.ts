@@ -59,7 +59,47 @@ const coarse = () => window.matchMedia("(pointer: coarse)").matches;
  * document scrolls over the canvas; everything the camera passes is a stage on that axis.
  */
 export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
-  probe.follow = options.follow ?? 7;
+  // A browser can take the WebGL context away at any time: a phone short of memory, a tab that sat
+  // in the background, a GPU process restart. three.js survives the restore only in part (the baked
+  // studio reflections and the cached shadow maps live on the GPU and do not come back), which shows
+  // as models that vanish and then return black. So the world is rebuilt from scratch instead.
+  let dead = false;
+  const restarts: number[] = [];
+  let cur: Running;
+  const restart = () => {
+    if (dead) return;
+    const now = performance.now();
+    restarts.push(now);
+    while (restarts.length && now - restarts[0] > 30000) restarts.shift();
+    cur.dispose(true);
+    // A context that keeps going is a device that cannot hold one: fall back to the plain page.
+    if (restarts.length > 3) {
+      dead = true;
+      root().dataset.world = "off";
+      worldStatus.set("failed");
+      return;
+    }
+    cur = startWorld(el, options, restart);
+  };
+  cur = startWorld(el, options, restart);
+  return {
+    dispose() {
+      dead = true;
+      cur.dispose(false);
+    },
+  };
+}
+
+interface Running {
+  /** `keep`: another world follows at once, so the page stays laid out for one. */
+  dispose(keep: boolean): void;
+}
+
+function startWorld(el: HTMLElement, options: WorldOptions, restart: () => void): Running {
+  const touch = coarse();
+  // A finger's scroll is already smooth, so the world can sit closer to it than to a wheel's steps:
+  // less of it trailing behind the page when the scroll turns round.
+  probe.follow = options.follow ?? (touch ? 10 : 7);
   const reduced = reducedMotion();
   // Read-only window into the loop for tests and the console.
   (window as unknown as { __yeniEvlerYapi: typeof probe }).__yeniEvlerYapi = probe;
@@ -71,10 +111,26 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
     fail();
     return { dispose() {} };
   }
-  const touch = coarse();
+  /** The context is gone: nothing can be drawn until the browser gives it back, or a new world is built. */
+  let lost = false;
+  let lostAt = 0;
+  const onLost = (e: Event) => {
+    e.preventDefault();
+    lost = true;
+    lostAt = performance.now();
+  };
+  // Once only: the restore event and the loop's own timeout can both ask.
+  let replaced = false;
+  const rebuild = () => {
+    if (replaced) return;
+    replaced = true;
+    restart();
+  };
+  // Out of the event, so the old renderer is not torn down inside its own callback.
+  const onRestored = () => setTimeout(rebuild, 0);
   // Phones have 3x screens and a fraction of the GPU. Start lower there; the loop steps down further
   // if frames run long (see `budget` below).
-  const maxPR = Math.min(window.devicePixelRatio, touch ? 1.75 : 2);
+  const maxPR = Math.min(window.devicePixelRatio, touch ? 1.5 : 2);
   let pixelRatio = maxPR;
   renderer.setPixelRatio(pixelRatio);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -94,6 +150,8 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
     transition: reduced ? "none" : "opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1)",
   } satisfies Partial<CSSStyleDeclaration>);
   canvas.setAttribute("aria-hidden", "true");
+  canvas.addEventListener("webglcontextlost", onLost);
+  canvas.addEventListener("webglcontextrestored", onRestored);
   el.appendChild(canvas);
 
   const scene = new THREE.Scene();
@@ -112,10 +170,11 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
     envBasin,
     mobile: () => mobile,
     reduced,
+    lite: touch,
   };
 
   /* ----------------------------------------------------------------- stages */
-  const water = buildWater(options.density ?? 1);
+  const water = buildWater(options.density ?? 1, touch);
   const exploded = buildExploded(ctx);
   const hero = buildHero(ctx, water);
   const jets = buildJets();
@@ -144,6 +203,10 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
    */
   let fh = 1;
   let layoutDirty = true;
+  /** What the drawing buffers were last sized for: width, height, pixel ratio. */
+  let sized = "";
+  /** Elements that paint with the backdrop's colour (see setBackground). */
+  let bgEls: HTMLElement[] = [];
 
   const measure = () => {
     layoutDirty = false;
@@ -151,16 +214,30 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
     vh = el.clientHeight || window.innerHeight;
     fh = Math.min(vh, frameH || vh);
     const pr = renderer.getPixelRatio();
-    renderer.setSize(vw, vh, false);
+    // Only when the canvas really changed: resizing reallocates the back buffer and the mirror, and
+    // this runs for any layout change at all (a font arriving, a section growing).
+    const size = `${vw}x${vh}@${pr}`;
+    if (size !== sized) {
+      sized = size;
+      renderer.setSize(vw, vh, false);
+      water.resize?.(vw, vh, pr);
+    }
     cam.aspect = vw / vh;
-    water.resize?.(vw, vh, pr);
+    bgEls = Array.from(document.querySelectorAll<HTMLElement>("[data-bg]"));
+    lastRGB = -1;
     mobile = mobileMq.matches;
     tl = mobile ? tls.mobile : tls.desktop;
     const sy = window.scrollY;
     // The host is pinned to the large viewport (World.tsx), so this does not move when a phone's
     // toolbar slides in and out, and neither do the keys anchored in viewport heights.
     geom.vh = fh;
-    geom.maxScroll = Math.max(1, root().scrollHeight - window.innerHeight);
+    // Against the same pinned height as the keys, not the window's height of the moment: a phone's
+    // toolbar must not rescale the whole timeline when something else asks for a re-measure. And
+    // when the document does change length, the eased progress is carried over in px, so the world
+    // stays where it is instead of gliding to the same fraction of a longer page.
+    const max = Math.max(1, root().scrollHeight - fh);
+    if (Ps >= 0 && max !== geom.maxScroll) Ps = Math.min(1, (Ps * geom.maxScroll) / max);
+    geom.maxScroll = max;
     const rects: Geometry["rects"] = {};
     document.querySelectorAll<HTMLElement>("[data-station]").forEach((n) => {
       const r = n.getBoundingClientRect();
@@ -210,7 +287,13 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
   const onLeave = () => {
     ptr.inside = false;
   };
+  // A finger never "leaves": without this its last position stays a hand in the hero's rain for good.
+  const onEnd = (e: PointerEvent) => {
+    if (e.pointerType !== "mouse") ptr.inside = false;
+  };
   window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onEnd);
+  window.addEventListener("pointercancel", onEnd);
   document.addEventListener("pointerleave", onLeave);
 
   let hidden = document.visibilityState === "hidden";
@@ -257,6 +340,9 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
   let first = true;
   let raf = 0;
   let time = 0;
+  let lastY = -1;
+  /** When the page last moved (performance.now), for work that should wait for a still moment. */
+  let scrolledAt = 0;
 
   const setBackground = () => {
     labToLinear(S[C.bgL], S[C.bgA], S[C.bgB], frame.bg.lin);
@@ -273,7 +359,12 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
     const packed = (r8 << 16) | (g8 << 8) | b8;
     if (packed !== lastRGB) {
       lastRGB = packed;
-      document.body.style.setProperty("--bg", `rgb(${r8} ${g8} ${b8})`);
+      // Straight onto the body and the few elements that paint with it ([data-bg]). As a custom
+      // property on the body it was inherited by every element on the page, so each step of a colour
+      // change restyled the whole document, on the very frames the world is busiest.
+      const rgb = `rgb(${r8} ${g8} ${b8})`;
+      document.body.style.backgroundColor = rgb;
+      for (const n of bgEls) n.style.setProperty("--bg", rgb);
     }
   };
 
@@ -293,23 +384,38 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
     slowT = slowSum = slowN = 0;
     if (avg < 1 / 45) return;
     pixelRatio = Math.max(1, Math.round((pixelRatio - 0.25) * 4) / 4);
+    // The buffers only: nothing in the layout moved, so the timeline is not measured again.
     renderer.setPixelRatio(pixelRatio);
-    layoutDirty = true;
+    water.resize?.(vw, vh, pixelRatio);
+    sized = `${vw}x${vh}@${pixelRatio}`;
   };
 
   const loop = (now: number) => {
     raf = requestAnimationFrame(loop);
-    const dt = Math.min((now - lastT) / 1000, 1 / 30);
+    const real = (now - lastT) / 1000;
+    const dt = Math.min(real, 1 / 30);
     lastT = now;
     if (hidden) return;
+    if (lost) {
+      // Still gone after a moment on a visible page: the browser is not going to restore this one.
+      if (now - lostAt > 1200) rebuild();
+      return;
+    }
     if (layoutDirty) measure();
     time += dt;
 
     // Master scroll progress, 0 to 1 over the whole document, eased with a frame-rate independent lerp.
+    // It follows the real time between frames (the simulation's dt is capped at a thirtieth): on a
+    // phone dropping frames the capped step would let the world fall further and further behind the
+    // page, and it is that gap which shows when the scroll turns round.
     const y = window.scrollY;
+    if (y !== lastY) {
+      lastY = y;
+      scrolledAt = now;
+    }
     const target = Math.min(1, Math.max(0, y / geom.maxScroll));
     if (Ps < 0 || reduced) Ps = target;
-    else Ps += (target - Ps) * damp(dt, probe.follow);
+    else Ps += (target - Ps) * damp(Math.min(real, 0.1), probe.follow);
 
     if (reduced) {
       const idx = restIndex(tl, geom, y);
@@ -447,10 +553,17 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
 
     if (!blind) {
       if (water.floorShown()) {
-        const fxOn = fx.group.visible;
-        fx.group.visible = false;
-        water.reflect(renderer, scene, cam, look);
-        fx.group.visible = fxOn;
+        // The mirror is a second pass over the whole scene. Not worth it while the floor barely shows
+        // it, nor, on a phone, once no stage is in the scene at all (the pool under the showrooms and
+        // the footer would only mirror the rain).
+        const bare = !hero.group.visible && !exploded.group.visible && !sink.group.visible && !basin.group.visible;
+        if (water.mirror() < 0.04 || (touch && bare)) water.plain(renderer, cam, lastRGB);
+        else {
+          const fxOn = fx.group.visible;
+          fx.group.visible = false;
+          water.reflect(renderer, scene, cam, look);
+          fx.group.visible = fxOn;
+        }
       }
       renderer.render(scene, cam);
       budget(dt);
@@ -557,9 +670,16 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
     return Promise.all(jobs);
   };
   let warmDead = false;
-  // Safari has no requestIdleCallback.
-  const whenIdle = (f: () => void) =>
+  // Safari has no requestIdleCallback. And either way a compile is held back while the page is moving
+  // (a finger on it, or its momentum), for up to a second and a half: where compiling blocks, it
+  // would land as a dropped frame in the middle of a scroll.
+  const idle = (f: () => void) =>
     typeof window.requestIdleCallback === "function" ? window.requestIdleCallback(f, { timeout: 2000 }) : setTimeout(f, 120);
+  const whenIdle = (f: () => void, waited = 0) => {
+    if (warmDead) return;
+    if (waited < 1500 && performance.now() - scrolledAt < 300) setTimeout(() => whenIdle(f, waited + 150), 150);
+    else idle(f);
+  };
   const warmAll = () => {
     const T = new Float64Array(N_CH);
     const p0 = Math.min(1, Math.max(0, window.scrollY / geom.maxScroll));
@@ -608,14 +728,18 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
   }
 
   return {
-    dispose() {
+    dispose(keep) {
       cancelAnimationFrame(raf);
+      canvas.removeEventListener("webglcontextlost", onLost);
+      canvas.removeEventListener("webglcontextrestored", onRestored);
       warmDead = true;
       warmRT.dispose();
       ro.disconnect();
       unpin();
       window.removeEventListener("load", markDirty);
       window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onEnd);
+      window.removeEventListener("pointercancel", onEnd);
       document.removeEventListener("pointerleave", onLeave);
       document.removeEventListener("visibilitychange", onVis);
       stages.forEach((st) => st.dispose());
@@ -624,6 +748,7 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
       renderer.dispose();
       renderer.forceContextLoss();
       canvas.remove();
+      if (keep) return;
       if (root().dataset.world === "on") root().dataset.world = "pending";
       worldStatus.set("idle");
     },

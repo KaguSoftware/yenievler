@@ -20,9 +20,10 @@ export function Exploded() {
       <div className="noworld:static noworld:h-auto noworld:min-h-0 noworld:overflow-visible noworld:px-[var(--pad)] noworld:py-[clamp(64px,9vw,120px)] sticky top-0 h-[calc(var(--svh)*100)] min-h-[620px] overflow-hidden short:min-h-0!">
         <div data-world-caption="" className="noworld:static noworld:opacity-100">
           {/* Portrait screens centre the head under the title, so its arm runs up through the words.
-              A wash of the page colour (world.ts keeps --bg current) lets the arm dissolve before it. */}
+              A wash of the page colour (world.ts keeps --bg current on [data-bg]) lets the arm dissolve before it. */}
           <div
             aria-hidden
+            data-bg=""
             className="noworld:hidden pointer-events-none absolute inset-x-0 top-0 hidden h-[clamp(220px,calc(var(--svh)*36),340px)] bg-[linear-gradient(to_bottom,var(--bg)_58%,transparent)] stack:block"
           />
           <Reveal className="pointer-events-none absolute top-[clamp(28px,calc(var(--lvh)*6),64px)] left-[var(--pad)] max-w-[min(100%,720px)] noworld:static">

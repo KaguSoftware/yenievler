@@ -113,7 +113,9 @@ html {
   scroll-behavior: smooth;
 }
 
-/* world.ts writes --bg on body every frame it changes; this is only the colour before that. */
+/* world.ts paints the body's background-color directly on every frame it changes, and writes --bg
+   on the few elements that paint with it (mark them data-bg): as an inherited property on the body it
+   restyled the whole page per step. This is only the colour before that. */
 html:is([data-world="pending"], [data-world="on"]) {
   --bg: var(--color-signal);
 }

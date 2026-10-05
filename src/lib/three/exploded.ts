@@ -128,6 +128,8 @@ export function buildExploded(ctx: BuildCtx): Stage {
   let nodesFor: HTMLElement | null = null;
   let lastCaption = -1;
   let lastBar = -1;
+  /** Some part label may be showing (set by update, cleared when always hides them). */
+  let labelsUp = false;
   const v = new THREE.Vector3();
   const right = new THREE.Vector3();
 
@@ -141,6 +143,16 @@ export function buildExploded(ctx: BuildCtx): Stage {
           cap.style.opacity = String(c);
           cap.style.visibility = c < 0.02 ? "hidden" : "visible";
         });
+      }
+      // update() places the part labels, and it only runs while the stack is the shot. If the stack
+      // goes while they are up (a rest pose swap, a fast scroll past the head), they go with it.
+      if (!group.visible && labelsUp) {
+        labelsUp = false;
+        for (const node of nodes)
+          if (node.dataset.op !== "0.000") {
+            node.dataset.op = "0.000";
+            node.style.opacity = "0";
+          }
       }
     },
     update(f: Frame) {
@@ -181,6 +193,7 @@ export function buildExploded(ctx: BuildCtx): Stage {
         const opS = op.toFixed(3);
         if (op < 0.01 && prev === "0.000") continue;
         node.dataset.op = opS;
+        labelsUp = true;
         v.setFromMatrixPosition(g.matrixWorld);
         v.addScaledVector(right, compact ? 1.05 : 1.28);
         v.project(f.cam);

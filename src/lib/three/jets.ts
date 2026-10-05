@@ -58,6 +58,12 @@ export interface Jet extends Required<Omit<JetOpts, "x1" | "z1">> {
 
 export interface Jets extends Stage {
   add(o: JetOpts): Jet;
+  /**
+   * Drop everything in the air at once: drops, splashes, rings. For the moment a stage leaves the
+   * shot (it is hidden, or the veil is down), so its water is not left hanging where it stood, to
+   * play out over whatever the camera looks at next. Safe to call on any frame, updated or not.
+   */
+  clear(): void;
 }
 
 const PALE = new THREE.Color(0xf4fbff);
@@ -317,7 +323,17 @@ export function buildJets(): Jets {
           dp[k] += dv[k] * dt;
           dp[k + 1] += dv[k + 1] * dt;
           dp[k + 2] += dv[k + 2] * dt;
-          if (dp[k + 1] <= j.landY && prevY > j.landY) {
+          if (dp[k + 1] <= j.landY && prevY <= j.landY && dv[k + 1] < 0) {
+            // Already under the surface and still falling: the surface rose past it between frames (a
+            // bowl filling, a basin lifting as the page scrolls back). It will never cross it now, so
+            // it goes quietly; left alone it would fall for ever and its slot would never be reused.
+            if (i - j.i0 < Math.round(Math.max(0, Math.min(1, j.on)) * j.n)) spawn(i, j);
+            else {
+              alive[i] = 0;
+              hide(i);
+              continue;
+            }
+          } else if (dp[k + 1] <= j.landY && prevY > j.landY) {
             const x = dp[k];
             const z = dp[k + 2];
             const rr = Math.random();
@@ -413,6 +429,41 @@ export function buildJets(): Jets {
         ageAttr.needsUpdate = true;
       }
       rings.visible = ringsLive > 0;
+    },
+    clear() {
+      if (!dropsLive && !splashLive && !ringsLive) return;
+      for (let i = 0; i < used; i++)
+        if (alive[i]) {
+          alive[i] = 0;
+          hide(i);
+        }
+      for (const j of jets) j.rev = 0;
+      frozenKey = "";
+      dropsLive = 0;
+      linePos.addUpdateRange(0, used * 6);
+      linePos.needsUpdate = true;
+      for (let s = 0; s < MAX_SPLASH; s++)
+        if (sl[s]) {
+          sl[s] = 0;
+          sp[s * 3 + 1] = -1e4;
+        }
+      splashLive = 0;
+      spGeo.attributes.position.needsUpdate = true;
+      sc.set(0, 0, 0);
+      m4.compose(ps.set(0, -1e4, 0), q, sc);
+      for (let r = 0; r < MAX_RINGS; r++)
+        if (rlive[r]) {
+          rlive[r] = 0;
+          rage[r] = 1;
+          rings.setMatrixAt(r, m4);
+        }
+      ringsLive = 0;
+      rings.instanceMatrix.needsUpdate = true;
+      ageAttr.needsUpdate = true;
+      // Nothing left to draw; the next update() sees it settled, or an outlet opening.
+      rings.visible = false;
+      lines.visible = splashes.visible = false;
+      idle = true;
     },
     dispose() {
       lineGeo.dispose();

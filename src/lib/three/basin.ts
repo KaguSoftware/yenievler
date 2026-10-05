@@ -28,7 +28,9 @@ export function buildBasin(ctx: BuildCtx, water: Water, jets: Jets): BasinStage 
   const dl = new THREE.DirectionalLight(0xfff4e6, 2.6);
   dl.position.set(2.5, 5, 3);
   dl.castShadow = true;
-  dl.shadow.mapSize.set(2048, 2048);
+  // A phone draws this map at a quarter of the texels; at its screen size the edge reads the same.
+  const mapSize = ctx.lite ? 1024 : 2048;
+  dl.shadow.mapSize.set(mapSize, mapSize);
   Object.assign(dl.shadow.camera, { left: -3, right: 3, top: 3, bottom: -3, near: 0.5, far: 15 });
   dl.shadow.bias = -0.0004;
   // The light rides with the group and nothing it lights moves on its own, so the 2048 map is redrawn
@@ -186,6 +188,8 @@ export function buildBasin(ctx: BuildCtx, water: Water, jets: Jets): BasinStage 
   let time = 0;
   const off = new THREE.Vector3();
   let shadowKey = "";
+  /** The basin has left the shot and its water was cleared (see always). */
+  let gone = false;
 
   return {
     group,
@@ -195,8 +199,17 @@ export function buildBasin(ctx: BuildCtx, water: Water, jets: Jets): BasinStage 
       dl.castShadow = cast;
     },
     always(f: Frame) {
-      // Out of range the spout is closed, so no stream is left running where the basin was.
-      if (f.s[C.basin] <= 0.01) jet.on = 0;
+      // Out of range the spout is closed, so no stream is left running where the basin was, and the
+      // pool stops catching rain: left on, it would stop the range's rain in mid-air above the place
+      // the basin stands, on the way back up the page.
+      if (f.s[C.basin] <= 0.01) {
+        jet.on = 0;
+        water.pool.on = false;
+        if (!gone) {
+          gone = true;
+          jets.clear();
+        }
+      } else gone = false;
     },
     update(f: Frame) {
       const s = f.s;
@@ -223,13 +236,14 @@ export function buildBasin(ctx: BuildCtx, water: Water, jets: Jets): BasinStage 
       const flowing = ui.water ? 1 : 0;
       f.s[C.water] *= 1 - smooth(0.3, 0.9, narrow);
       pool.visible = ui.water || over > 0.05;
-      jet.on = narrow * flowing * (1 - smooth(0.2, 0.7, over)) * (w > 0.3 ? 1 : 0);
+      // Closed again once the basin has gone under the floor: nothing of it can be seen from there.
+      jet.on = narrow * flowing * (1 - smooth(0.2, 0.7, over)) * (w > 0.3 ? 1 : 0) * (1 - smooth(0.1, 0.25, sink));
       jet.x0 = jet.x1 = group.position.x;
       jet.z0 = jet.z1 = group.position.z - 0.6;
       jet.y = group.position.y + 0.665;
       jet.landY = group.position.y + poolY;
 
-      water.pool.on = (ui.water || over > 0.05) && w > 0.3;
+      water.pool.on = (ui.water || over > 0.05) && w > 0.3 && sink < 0.25;
       water.pool.x = 0;
       water.pool.z = group.position.z - 0.4;
       water.pool.y = group.position.y + poolY;
