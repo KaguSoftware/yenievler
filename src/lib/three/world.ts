@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { pinScreenHeight } from "../screenHeight";
+import { pinScreenHeight, smallScreenHeight } from "../screenHeight";
 import { damp, domRef, makeEnv, reducedMotion, smooth } from "./common";
 import { buildBasin } from "./basin";
 import { buildExploded } from "./exploded";
@@ -137,12 +137,19 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
   const geom: Geometry = { rects: {}, vh: 1, maxScroll: 1 };
   let vw = 1;
   let vh = 1;
+  /**
+   * The height the shot is framed for: the screen with a phone's toolbar out. The canvas is as tall as
+   * the screen can get (vh), and the strip below this only shows more of the scene, so the shot keeps
+   * the roomy framing whether the toolbar is out or tucked away. Equal to vh on desktop.
+   */
+  let fh = 1;
   let layoutDirty = true;
 
   const measure = () => {
     layoutDirty = false;
     vw = el.clientWidth || window.innerWidth;
     vh = el.clientHeight || window.innerHeight;
+    fh = Math.min(vh, frameH || vh);
     const pr = renderer.getPixelRatio();
     renderer.setSize(vw, vh, false);
     cam.aspect = vw / vh;
@@ -152,7 +159,7 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
     const sy = window.scrollY;
     // The host is pinned to the large viewport (World.tsx), so this does not move when a phone's
     // toolbar slides in and out, and neither do the keys anchored in viewport heights.
-    geom.vh = vh;
+    geom.vh = fh;
     geom.maxScroll = Math.max(1, root().scrollHeight - window.innerHeight);
     const rects: Geometry["rects"] = {};
     document.querySelectorAll<HTMLElement>("[data-station]").forEach((n) => {
@@ -169,7 +176,14 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
   // On a phone, scrolling shows and hides the browser toolbar, which resizes the window by its height
   // alone. Resizing the canvas or re-resolving the timeline then would reframe the shot mid-scroll, so
   // the host is pinned in px and only a real change (rotation, split screen, a window drag) counts.
-  const unpin = pinScreenHeight(el, { grow: true, onChange: markDirty });
+  let frameH = 0;
+  const unpin = pinScreenHeight(el, {
+    grow: true,
+    onChange: (screen) => {
+      if (screen) frameH = smallScreenHeight();
+      markDirty();
+    },
+  });
   const ro = new ResizeObserver(markDirty);
   ro.observe(el);
   ro.observe(document.body);
@@ -334,18 +348,26 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
     let fovNow = S[C.fov];
     // Phones narrower than the one the mobile keys were framed on: keep the same width of world in
     // shot. A pinned window has its own shape, so this hands over to the pin as it takes hold.
-    const fit = mobile ? Math.max(1, MOBILE_ASPECT / (vw / vh)) : 1;
+    const fit = mobile ? Math.max(1, MOBILE_ASPECT / (vw / fh)) : 1;
     if (fit > 1) {
       const t = Math.tan((fovNow * Math.PI) / 360) * (1 + (fit - 1) * (1 - pin));
       fovNow = (2 * Math.atan(t) * 180) / Math.PI;
     }
     if (pr && pr.height > 1) {
-      const k = 1 + (pr.height / vh - 1) * pin;
+      const k = 1 + (pr.height / fh - 1) * pin;
       fovNow = (2 * Math.atan(Math.tan((fovNow * Math.PI) / 360) * k) * 180) / Math.PI;
     }
     cam.fov = fovNow;
-    cam.aspect = vw / vh;
+    cam.aspect = vw / fh;
     cam.updateProjectionMatrix();
+    // Extend the frame down over the rest of the canvas: the top fh px keep exactly the framed shot.
+    const ext = fh / vh;
+    if (ext < 1) {
+      const e = cam.projectionMatrix.elements;
+      e[5] *= ext;
+      e[9] = ext - 1;
+      cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
+    }
     cam.lookAt(look);
     cam.updateMatrixWorld();
 
@@ -392,12 +414,12 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
     let shiftY = S[C.shiftY] * (1 - pin);
     if (pr) {
       shiftX += (((pr.left + pr.width / 2) / vw) * 2 - 1) * pin;
-      shiftY += (1 - ((pr.top + pr.height / 2) / vh) * 2) * pin;
+      shiftY += (1 - ((pr.top + pr.height / 2) / fh) * 2) * pin;
     }
     if (shiftX || shiftY) {
       const e = cam.projectionMatrix.elements;
       e[8] = -shiftX;
-      e[9] = -shiftY;
+      e[9] = -shiftY * ext + ext - 1;
       cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
     }
 

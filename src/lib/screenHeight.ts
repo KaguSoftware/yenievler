@@ -9,9 +9,13 @@
  *
  * `grow`: also re-pin when the window gets taller than the element (for a canvas that must cover
  * the screen; with working lvh it is already as tall as the window can get, so this never fires).
- * `onChange` runs after each re-pin. Returns the cleanup.
+ * `onChange` runs after each re-pin, with `screen` true for a real screen change and false for a grow.
+ * Returns the cleanup.
  */
-export function pinScreenHeight(el: HTMLElement, { grow = false, onChange = () => {} } = {}) {
+export function pinScreenHeight(
+  el: HTMLElement,
+  { grow = false, onChange = (screen: boolean) => void screen } = {},
+) {
   const touch = window.matchMedia("(pointer: coarse)").matches;
   let w = -1;
   let h = 0;
@@ -20,11 +24,11 @@ export function pinScreenHeight(el: HTMLElement, { grow = false, onChange = () =
     const ih = window.innerHeight;
     const toolbar = touch && iw === w && Math.abs(ih - h) < 160;
     if (toolbar && !(grow && ih > el.offsetHeight)) return;
-    w = iw;
+    if (!toolbar) w = iw;
     h = ih;
     el.style.height = "";
     el.style.height = `${grow ? Math.max(el.offsetHeight, ih) : el.offsetHeight}px`;
-    onChange();
+    onChange(!toolbar);
   };
   pin();
   window.addEventListener("resize", pin);
@@ -32,4 +36,17 @@ export function pinScreenHeight(el: HTMLElement, { grow = false, onChange = () =
     window.removeEventListener("resize", pin);
     el.style.height = "";
   };
+}
+
+/**
+ * The window's height with a phone's toolbar out (100svh), which is the most a layout can count on.
+ * On desktop it is simply the window's height.
+ */
+export function smallScreenHeight() {
+  const probe = document.createElement("div");
+  probe.style.cssText = "position:fixed;top:0;left:0;width:0;height:100svh;visibility:hidden;pointer-events:none";
+  document.body.appendChild(probe);
+  const svh = probe.offsetHeight;
+  probe.remove();
+  return Math.min(svh || window.innerHeight, window.innerHeight);
 }
