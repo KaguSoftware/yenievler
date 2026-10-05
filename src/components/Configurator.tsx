@@ -25,7 +25,7 @@ export function Configurator() {
   // Phones: a sticky stage (useStage). The basin keeps a band at the top of the screen while the
   // pickers ride up beneath it, so every pick is seen on the basin, and the overflow starts from a
   // basin that is still in shot. Half a screen of scroll follows the ride, for the camera to let go in.
-  const { track, stage, band, tail, on: staged, y: paneY, fade: fadeO } = useStage(0.5);
+  const { track, stage, band, tail, y: paneY, fade: fadeO } = useStage(0.5);
 
   const st = STONES[stone];
   const fi = FINISHES[finish];
@@ -38,11 +38,11 @@ export function Configurator() {
       className="grid border-y border-ink/10 bg-mist world:bg-transparent world:lg:grid-cols-[minmax(0,1.7fr)_minmax(380px,1fr)] noworld:lg:grid-cols-[minmax(0,1fr)] side:grid-cols-[minmax(0,1.15fr)_minmax(300px,1fr)] stage:block stage:border-y-0 stage:[--stage:1]"
     >
       {/* Desktop: no box, its children are the grid's. Phones: the sticky stage, one screen tall. */}
-      <div ref={stage} className="contents stage:sticky stage:top-0 stage:flex stage:h-lvh stage:flex-col">
+      <div ref={stage} className="contents stage:sticky stage:top-0 stage:flex stage:h-lvh stage:flex-col stage:[&_:is(a,button,input)]:scroll-mt-[calc(40lvh+40px)]">
       {/* The basin is drawn by the shared canvas, centred on this window (data-world-pin). */}
       <div
         ref={band}
-        className="noworld:hidden relative min-h-[min(86vh,820px)] min-w-0 max-lg:min-h-[min(56svh,480px)] side:sticky side:top-0 side:h-lvh side:min-h-0 side:self-start stage:h-[40lvh] stage:min-h-0 stage:shrink-0"
+        className="noworld:hidden relative min-h-[min(86vh,820px)] min-w-0 max-lg:min-h-[min(56svh,480px)] motion-reduce:stack:h-[40lvh]! motion-reduce:stack:min-h-0! side:sticky side:top-0 side:h-lvh side:min-h-0 side:self-start stage:h-[40lvh] stage:min-h-0 stage:shrink-0"
       >
         <div data-world-pin="" className="pointer-events-none absolute inset-0" />
         <p className="pointer-events-none absolute top-7 left-[var(--pad)] rounded-full bg-paper/85 px-3 py-1 text-[12px] font-semibold sm:text-[14px] text-ink">
@@ -73,7 +73,7 @@ export function Configurator() {
       <motion.div
         ref={tail}
         data-live=""
-        style={staged ? { y: paneY } : undefined}
+        style={{ y: paneY }}
         className="world:bg-mist flex flex-col gap-6 sm:gap-7 border-ink/10 px-[var(--pad)] py-[clamp(32px,4vw,56px)] lg:border-l noworld:lg:border-l-0 side:border-l stage:border-l-0 stage:will-change-transform stage:[mask-image:linear-gradient(to_bottom,black_calc(100%-36px),transparent)]"
       >
         <div className="flex flex-col gap-3.5">
@@ -133,7 +133,7 @@ export function Configurator() {
       </div>
 
       {/* Phones: the scroll the panel needs to pass under the band while the stage holds. */}
-      <div aria-hidden className="hidden stage:block stage:h-[var(--stage-run)]" />
+      <div aria-hidden className="hidden stage:block stage:h-[var(--stage-run,120lvh)]" />
     </section>
   );
 }

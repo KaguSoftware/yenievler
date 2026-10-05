@@ -150,7 +150,11 @@ export function Sink() {
   // the dive starts from it, exactly as on desktop. The last half screen of the ride overlaps the
   // outro, so the dive follows the last row without a pause.
   const { track, stage, band, tail, on: staged, y: paneY, fade: fadeO } = useStage(-0.5);
-  const ride = staged ? { y: paneY } : undefined;
+  // The offset is zero while the stage is off, so the heading can always carry it. The console and
+  // the rows swap between the ride and the desktop drop: the ride states opacity and visibility too,
+  // or whatever the drop last wrote would stay on them after a rotation.
+  const still = { y: paneY };
+  const ride = staged ? ({ y: paneY, opacity: 1, visibility: "visible" } as const) : (drop ?? still);
 
   const running = OUTLETS.filter((o) => on[o.id]);
 
@@ -189,7 +193,7 @@ export function Sink() {
             with the sink's window as a band across its top and everything else clipped below it. */}
         <div
           ref={stage}
-          className="contents stage:sticky stage:top-0 stage:-mx-[var(--pad)] stage:block stage:h-lvh stage:px-[var(--pad)] stage:pt-[calc(var(--band)+26px)] stage:[--band:40lvh] stage:[clip-path:inset(var(--band)_0_0_0)]"
+          className="contents stage:sticky stage:top-0 stage:-mx-[var(--pad)] stage:block stage:h-lvh stage:px-[var(--pad)] stage:pt-[calc(var(--band)+26px)] stage:[--band:40lvh] stage:[clip-path:inset(var(--band)_0_0_0)] stage:[&_:is(a,button,input)]:scroll-mt-[calc(40lvh+40px)]"
         >
         {/* The words fade into the paper as they reach the band, instead of being cut by a line. */}
         <motion.div
@@ -197,7 +201,7 @@ export function Sink() {
           style={{ opacity: fadeO }}
           className="pointer-events-none absolute inset-x-0 top-[var(--band)] z-10 hidden h-7 bg-[linear-gradient(to_bottom,var(--bg),transparent)] stage:block"
         />
-        <motion.div style={ride} className="lg:col-start-1 lg:row-start-1 side:col-start-1 stage:will-change-transform">
+        <motion.div style={still} className="lg:col-start-1 lg:row-start-1 side:col-start-1 stage:will-change-transform">
           <Reveal className="flex flex-col gap-6">
             <h2 id="sink-spec-title" className="display max-w-[14ch] text-[clamp(34px,6.4vw,108px)] text-balance">
               {t.sink.title}
@@ -211,7 +215,7 @@ export function Sink() {
           {/* With WebGL the shared canvas draws the sink centred on this window (data-world-pin). */}
           <div
             ref={band}
-            className="noworld:hidden relative aspect-square max-h-[62svh] min-h-[220px] lg:aspect-auto lg:h-[min(56vh,560px)] lg:max-h-none side:sticky side:top-[22lvh] side:col-start-2 side:row-span-4 side:row-start-1 side:aspect-auto side:h-[56lvh] side:max-h-none side:min-h-0 stage:absolute stage:inset-x-0 stage:top-0 stage:aspect-auto stage:h-[var(--band)] stage:max-h-none stage:min-h-0"
+            className="noworld:hidden relative aspect-square max-h-[62svh] min-h-[220px] lg:aspect-auto lg:h-[min(56vh,560px)] lg:max-h-none motion-reduce:stack:aspect-auto! motion-reduce:stack:h-[40lvh]! motion-reduce:stack:max-h-none! side:sticky side:top-[22lvh] side:col-start-2 side:row-span-4 side:row-start-1 side:aspect-auto side:h-[56lvh] side:max-h-none side:min-h-0 stage:absolute stage:inset-x-0 stage:top-0 stage:aspect-auto stage:h-[var(--band)] stage:max-h-none stage:min-h-0"
           >
             <div data-world-pin="sink" className="pointer-events-none absolute inset-0" />
           </div>
@@ -220,7 +224,7 @@ export function Sink() {
               <Drawing f={f} on={on} mode={mode} temp={temp} plug={plug} full={full} focus={focus} />
             </div>
           </Reveal>
-          <motion.div style={ride ?? drop} className="side:col-start-1 stage:mt-7 stage:will-change-transform">
+          <motion.div style={ride} className="side:col-start-1 stage:mt-7 stage:will-change-transform">
             <Reveal delay={120}>
               <Console
                 on={on}
@@ -268,7 +272,7 @@ export function Sink() {
 
         <motion.div
           ref={tail}
-          style={ride ?? drop}
+          style={ride}
           className="flex flex-col gap-8 sm:gap-10 lg:col-start-1 lg:row-start-2 side:col-start-1 stage:mt-9 stage:will-change-transform"
         >
           <ul className="flex flex-col" onMouseLeave={() => setFocus(null)}>
@@ -329,7 +333,7 @@ export function Sink() {
         </div>
 
         {/* Phones: the scroll the words need to pass under the band while the stage holds. */}
-        <div aria-hidden className="hidden stage:block stage:h-[var(--stage-run)]" />
+        <div aria-hidden className="hidden stage:block stage:h-[var(--stage-run,150lvh)]" />
 
         {/* Empty scroll that keeps the sticky sink window on screen after the words have gone. */}
         <div

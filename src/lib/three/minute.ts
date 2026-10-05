@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { pinScreenHeight } from "../screenHeight";
 import {
   baseRenderer,
   makeEnv,
@@ -548,6 +549,8 @@ export function initMinute(el: HTMLElement, o: MinuteOptions): Dispose {
     st.setProperty("--cap", String(CAPACITY));
     dirty = true;
   };
+  // The panel is 100svh: pinned, so a phone's toolbar on the move cannot resize the jugs mid-pour.
+  const unpin = pinScreenHeight(o.host);
   layout();
   const ro = new ResizeObserver(layout);
   ro.observe(el);
@@ -591,6 +594,7 @@ export function initMinute(el: HTMLElement, o: MinuteOptions): Dispose {
   return () => {
     cancelAnimationFrame(raf);
     ro.disconnect();
+    unpin();
     io.disconnect();
     scene.traverse((obj) => {
       const m = obj as THREE.Mesh;

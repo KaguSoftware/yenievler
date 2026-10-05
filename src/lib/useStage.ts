@@ -18,7 +18,8 @@ import { useMotionValue } from "framer-motion";
  *   band   the window (the world's pin target)
  *   tail   the last block that rides; the run ends when its bottom edge passes under the band
  *
- * CSS decides whether the stage is on; this only follows it. `after` is how many screens of scroll
+ * CSS decides whether the stage is on; this only follows it, and `y` is zero while it is off, so
+ * the riding blocks can carry it always. `after` is how many screens of scroll
  * follow the run while the stage still holds (negative: the run's end overlaps whatever comes next).
  */
 export function useStage(after = 0) {
@@ -69,7 +70,9 @@ export function useStage(after = 0) {
       apply();
     };
     const ro = new ResizeObserver(measure);
-    for (const n of new Set([document.body, st, tl, ...Array.from(st.children)])) ro.observe(n);
+    // Two levels down: a child with `display: contents` has no box of its own to observe.
+    const kids = Array.from(st.children).flatMap((c) => [c, ...Array.from(c.children)]);
+    for (const n of new Set([document.body, st, tl, ...kids])) ro.observe(n);
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", apply, { passive: true });
     measure();

@@ -74,7 +74,7 @@
    desktop camera keys, which expect the subject's window to stay on screen. So the sink console and
    the basin builder go side by side there too, words in one column and a sticky window in the other. */
 @custom-variant side {
-  @media (min-width: 640px) and (max-width: 1023.98px) and (min-aspect-ratio: 1/1) {
+  @media (min-width: 640px) and (max-width: 1023.98px) and (min-aspect-ratio: 1001/1000) {
     html:is([data-world="pending"], [data-world="on"]) & {
       @slot;
     }

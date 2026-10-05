@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { pinScreenHeight } from "../screenHeight";
 import { damp, domRef, makeEnv, reducedMotion, smooth } from "./common";
 import { buildBasin } from "./basin";
 import { buildExploded } from "./exploded";
@@ -37,8 +38,12 @@ export interface World {
 
 const root = () => document.documentElement;
 
-/** Phones and portrait screens get their own keyframe set. */
-const isMobile = (w: number, h: number) => w < 640 || w / h < 1;
+/**
+ * Phones and portrait screens get their own keyframe set. The same media query as the `stack` and
+ * `stage` variants in globals.css, so the camera keys and the layout they are framed for never
+ * disagree (a scrollbar's width, or a window that is exactly square, would split a size test).
+ */
+const MOBILE_QUERY = "(max-width: 639.98px), (max-aspect-ratio: 1/1)";
 
 /**
  * The mobile keys are framed on a 390 x 844 phone. A narrower screen widens the lens until the
@@ -125,6 +130,7 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
     desktop: buildTimeline("desktop"),
     mobile: buildTimeline("mobile"),
   };
+  const mobileMq = window.matchMedia(MOBILE_QUERY);
   let mobile = false;
   let tl = tls.desktop;
   const S = new Float64Array(N_CH);
@@ -132,23 +138,19 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
   let vw = 1;
   let vh = 1;
   let layoutDirty = true;
-  let lastW = 0;
-  let lastH = 0;
 
   const measure = () => {
     layoutDirty = false;
     vw = el.clientWidth || window.innerWidth;
     vh = el.clientHeight || window.innerHeight;
-    lastW = window.innerWidth;
-    lastH = window.innerHeight;
     const pr = renderer.getPixelRatio();
     renderer.setSize(vw, vh, false);
     cam.aspect = vw / vh;
     water.resize?.(vw, vh, pr);
-    mobile = isMobile(vw, vh);
+    mobile = mobileMq.matches;
     tl = mobile ? tls.mobile : tls.desktop;
     const sy = window.scrollY;
-    // The host is as tall as the large viewport (World.tsx), so this does not move when a phone's
+    // The host is pinned to the large viewport (World.tsx), so this does not move when a phone's
     // toolbar slides in and out, and neither do the keys anchored in viewport heights.
     geom.vh = vh;
     geom.maxScroll = Math.max(1, root().scrollHeight - window.innerHeight);
@@ -165,16 +167,12 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
     layoutDirty = true;
   };
   // On a phone, scrolling shows and hides the browser toolbar, which resizes the window by its height
-  // alone. Re-resolving the timeline then would nudge every key mid-scroll, so only a real change
-  // (rotation, split screen, a desktop window drag) counts.
-  const onResize = () => {
-    if (touch && window.innerWidth === lastW && Math.abs(window.innerHeight - lastH) < 160) return;
-    layoutDirty = true;
-  };
+  // alone. Resizing the canvas or re-resolving the timeline then would reframe the shot mid-scroll, so
+  // the host is pinned in px and only a real change (rotation, split screen, a window drag) counts.
+  const unpin = pinScreenHeight(el, { grow: true, onChange: markDirty });
   const ro = new ResizeObserver(markDirty);
   ro.observe(el);
   ro.observe(document.body);
-  window.addEventListener("resize", onResize);
   window.addEventListener("load", markDirty);
   document.fonts?.ready.then(markDirty);
 
@@ -593,7 +591,7 @@ export function initWorld(el: HTMLElement, options: WorldOptions = {}): World {
       warmDead = true;
       warmRT.dispose();
       ro.disconnect();
-      window.removeEventListener("resize", onResize);
+      unpin();
       window.removeEventListener("load", markDirty);
       window.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerleave", onLeave);
